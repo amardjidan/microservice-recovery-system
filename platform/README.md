@@ -1,58 +1,114 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Microservice Recovery System
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Sistem untuk mendeteksi downtime microservice, menemukan data yang terdampak (missing / duplicate / inconsistent), mengkuantifikasi dampaknya, dan memperbaikinya lewat proses replay yang idempotent.
 
-## About Laravel
+> Status: **work in progress**. Saat ini berjalan di lingkungan simulasi (dua microservice tiruan). Belum tersambung ke database/microservice asli.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Struktur Repo
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```
+microservice-recovery/
+├── platform/        # Laravel: health monitoring, discovery, recovery amount, replay
+├── sim/             # Lingkungan simulasi (bukan bagian sistem final)
+│   ├── order-service/     # Dummy service :4001
+│   ├── payment-service/   # Dummy service :4002
+│   ├── traffic.js         # Generator trafik order
+│   └── seed-test.js       # Pembuat data uji (inconsistent)
+└── README.md
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+## Prasyarat
 
-## Contributing
+- PHP 8.2+ dengan extension `pdo_sqlite` dan `sqlite3` aktif
+- Composer
+- Node.js (LTS) dan npm
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Setup
 
-## Code of Conduct
+```powershell
+# 1. Simulasi
+cd sim/order-service;   npm install
+cd ../payment-service;  npm install
+cd ..;                  npm install
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+# 2. Platform
+cd ../platform
+composer install
+copy .env.example .env
+php artisan key:generate
+New-Item database\database.sqlite -ItemType File -Force
+php artisan migrate
+```
 
-## Security Vulnerabilities
+Seed dua service yang dipantau lewat `php artisan tinker`:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```php
+App\Models\Service::create(['name'=>'Order Service','slug'=>'order-service','health_url'=>'http://localhost:4001/health','check_interval_sec'=>15]);
+App\Models\Service::create(['name'=>'Payment Service','slug'=>'payment-service','health_url'=>'http://localhost:4002/health','check_interval_sec'=>15]);
+```
 
-## License
+## Menjalankan Simulasi
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Buka terminal terpisah untuk masing-masing:
+
+```powershell
+cd sim/payment-service; node index.js
+cd sim/order-service;   node index.js
+cd sim;                 node traffic.js
+cd platform;            php artisan schedule:work
+```
+
+Untuk mensimulasikan downtime: matikan `payment-service` (Ctrl+C), tunggu beberapa saat, lalu nyalakan lagi.
+
+## Modul & Command
+
+### 1. Health Monitoring
+`php artisan app:ping-services` — memanggil endpoint `/health` tiap service aktif, mencatat hasil ke `health_checks`, dan membuka/menutup `incidents` saat status berubah `up` ↔ `down`. Dijadwalkan tiap 15 detik lewat scheduler.
+
+### 2. Data Loss Discovery
+`php artisan app:discover-impact {incident_id} [--entity=default_incident_entity]`
+
+Membandingkan data source vs target dalam rentang waktu incident (hanya untuk incident berstatus `resolved`). Kategori hasil:
+
+| Kategori | Arti |
+|---|---|
+| `missing` | Ada di source, tidak ada di target |
+| `duplicate` | Ada lebih dari satu baris di target untuk key yang sama |
+| `inconsistent` | Ada di kedua sisi, tetapi nilai `amount` berbeda |
+
+Nama tabel/kolom/koneksi dibaca dari `config/discovery.php`, bukan hardcode, sehingga dapat disesuaikan ke struktur data lain. Hasil disimpan ke `impacted_records` dengan `updateOrCreate` sehingga command aman dijalankan berulang.
+
+### 3. Recovery Amount
+`GET /incidents/{id}/recovery-amount` — mengembalikan jumlah record terdampak, breakdown per kategori, estimasi nilai, dan breakdown status. Semua angka dapat diverifikasi ulang dari `source_snapshot` di `impacted_records` atau dari query langsung ke database sumber.
+
+### 4. Recovery Process (Replay)
+`php artisan app:replay {impacted_record_id} [--dry-run]`
+
+Alur: cek idempotency key → cek kondisi target → (dry-run berhenti di sini) → kirim ulang ke target → verifikasi data benar-benar ada → tandai `verified`. Idempotent: dijalankan berulang tidak menduplikasi data maupun `recovery_actions`.
+
+## Skema Tabel (Platform)
+
+`services`, `health_checks`, `incidents`, `impacted_records`, `recovery_actions`.
+
+## Hasil Uji
+
+| Skenario | Hasil |
+|---|---|
+| Payment-service mati (2 kejadian) | 61 dan 172 record `missing` terdeteksi; angka cocok dengan hitung manual di `order.db` |
+| Data uji amount berbeda | 1 record `inconsistent` terdeteksi |
+| Replay dijalankan 2x pada record yang sama | Eksekusi kedua ditolak (noop); `recovery_actions` tetap 1 baris |
+| Order-service mati | Incident terdeteksi, tetapi tidak ada record terdampak yang dapat ditemukan (lihat Keterbatasan) |
+
+## Keterbatasan yang Diketahui
+
+- **Request yang gagal total sebelum tersimpan** (mis. order-service sendiri yang mati) tidak meninggalkan jejak di database mana pun, sehingga tidak terdeteksi oleh perbandingan dua database. Dibutuhkan sumber data tambahan di luar service (mis. log API gateway).
+- **Kategori `duplicate`** belum dapat didemokan di simulasi karena tabel `payments` memiliki constraint `UNIQUE` pada `order_ref`. Logic-nya sudah ada di command.
+- Belum ada UI (dashboard monitoring dan admin UI perbaikan data), autentikasi, audit trail, dan alert otomatis.
+
+## Open Questions
+
+1. Database asli mewakili microservice yang mana, dan bagaimana skemanya?
+2. Kolom apa yang menjadi kunci pembanding antar tabel?
+3. Apakah discovery boleh dijalankan dengan akses read-only terlebih dahulu?
+4. Apakah kasus request gagal total termasuk dalam definisi "data terdampak"?
+5. Tingkat otomasi recovery: otomatis penuh atau butuh approval manual?
