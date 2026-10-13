@@ -1,114 +1,85 @@
-# Microservice Recovery System
+# Audit Jurnal: Microservice Recovery System
 
-Sistem untuk mendeteksi downtime microservice, menemukan data yang terdampak (missing / duplicate / inconsistent), mengkuantifikasi dampaknya, dan memperbaikinya lewat proses replay yang idempotent.
+API untuk mengaudit kelengkapan data jurnal (`journal_all`) di PostgreSQL: idx yang hilang atau berlebih,
+jumlah kemunculan idx yang tidak rata, pola scenario yang tidak dikenal, debit tidak sama dengan credit,
+dan scenario tanpa template. Logika audit ada di database (view, function, procedure); Laravel hanya memanggilnya.
 
-> Status: **work in progress**. Saat ini berjalan di lingkungan simulasi (dua microservice tiruan). Belum tersambung ke database/microservice asli.
+## Prasyarat database
 
-## Struktur Repo
+Objek berikut harus sudah ada di database (dibuat dari script SQL audit):
 
-```
-microservice-recovery/
-├── platform/        # Laravel: health monitoring, discovery, recovery amount, replay
-├── sim/             # Lingkungan simulasi (bukan bagian sistem final)
-│   ├── order-service/     # Dummy service :4001
-│   ├── payment-service/   # Dummy service :4002
-│   ├── traffic.js         # Generator trafik order
-│   └── seed-test.js       # Pembuat data uji (inconsistent)
-└── README.md
-```
-
-## Prasyarat
-
-- PHP 8.2+ dengan extension `pdo_sqlite` dan `sqlite3` aktif
-- Composer
-- Node.js (LTS) dan npm
+| Objek | Fungsi |
+|---|---|
+| tabel `journal_all`, `scenario_template`, `normal_scenario_patterns` | Data dan acuan |
+| materialized view `referensi_pola_full`, `scenario_stats_cache` | Cache pola dan statistik |
+| view `audit_anomali` | Daftar anomali |
+| function `cek_referensi(text)`, `cek_idx(text)` | Cek satu referensi langsung dari `journal_all` |
+| procedure `refresh_audit()` | Refresh cache (sekitar 48 detik di data asli) |
 
 ## Setup
 
-```powershell
-# 1. Simulasi
-cd sim/order-service;   npm install
-cd ../payment-service;  npm install
-cd ..;                  npm install
+Butuh PHP 8.4 atau lebih baru (dependency di `composer.lock` mensyaratkan >= 8.4.1), Composer, dan ekstensi `pdo_pgsql`.
 
-# 2. Platform
-cd ../platform
+```powershell
+cd platform
 composer install
 copy .env.example .env
 php artisan key:generate
-New-Item database\database.sqlite -ItemType File -Force
-php artisan migrate
+# isi DB_PASSWORD dan (opsional) AUDIT_API_TOKEN di .env
+php artisan migrate        # membuat tabel audit_repair_log
+php artisan serve
 ```
 
-Seed dua service yang dipantau lewat `php artisan tinker`:
+Hanya PostgreSQL yang didukung.
 
-```php
-App\Models\Service::create(['name'=>'Order Service','slug'=>'order-service','health_url'=>'http://localhost:4001/health','check_interval_sec'=>15]);
-App\Models\Service::create(['name'=>'Payment Service','slug'=>'payment-service','health_url'=>'http://localhost:4002/health','check_interval_sec'=>15]);
-```
+## Autentikasi
 
-## Menjalankan Simulasi
+Kirim header `Authorization: Bearer <AUDIT_API_TOKEN>`. Kalau `AUDIT_API_TOKEN` kosong, API hanya terbuka saat
+`APP_ENV=local`; di lingkungan lain semua request ditolak (401).
 
-Buka terminal terpisah untuk masing-masing:
+## Endpoint
 
-```powershell
-cd sim/payment-service; node index.js
-cd sim/order-service;   node index.js
-cd sim;                 node traffic.js
-cd platform;            php artisan schedule:work
-```
+Semua di bawah `/api/audit`. Kirim `Accept: application/json`.
 
-Untuk mensimulasikan downtime: matikan `payment-service` (Ctrl+C), tunggu beberapa saat, lalu nyalakan lagi.
+### Cek seluruh data
 
-## Modul & Command
-
-### 1. Health Monitoring
-`php artisan app:ping-services` — memanggil endpoint `/health` tiap service aktif, mencatat hasil ke `health_checks`, dan membuka/menutup `incidents` saat status berubah `up` ↔ `down`. Dijadwalkan tiap 15 detik lewat scheduler.
-
-### 2. Data Loss Discovery
-`php artisan app:discover-impact {incident_id} [--entity=default_incident_entity]`
-
-Membandingkan data source vs target dalam rentang waktu incident (hanya untuk incident berstatus `resolved`). Kategori hasil:
-
-| Kategori | Arti |
+| Endpoint | Isi |
 |---|---|
-| `missing` | Ada di source, tidak ada di target |
-| `duplicate` | Ada lebih dari satu baris di target untuk key yang sama |
-| `inconsistent` | Ada di kedua sisi, tetapi nilai `amount` berbeda |
+| `GET report` | Ringkasan + jumlah debit/credit tidak seimbang + scenario tanpa template (memindai seluruh `journal_all`, lebih lambat) |
+| `GET summary` | Total referensi, normal, tidak normal, anomali per jenis, top pola |
+| `GET anomalies` | Semua anomali. Filter: `jenis`, `scenario`, `q`, `page`, `per_page` |
+| `GET anomalies/idx?tipe=hilang\|kurang` | Detail tingkat idx untuk semua anomali |
+| `GET unknown-patterns` | Pola yang tidak ada di pola normal, dengan jumlah referensi dan contoh |
+| `GET unbalanced?tolerance=0.05` | Debit tidak sama dengan credit per referensi + scenario |
+| `GET scenarios-without-template` | Scenario di data yang tidak ada di `scenario_template` |
 
-Nama tabel/kolom/koneksi dibaca dari `config/discovery.php`, bukan hardcode, sehingga dapat disesuaikan ke struktur data lain. Hasil disimpan ke `impacted_records` dengan `updateOrCreate` sehingga command aman dijalankan berulang.
+### Satu referensi
 
-### 3. Recovery Amount
-`GET /incidents/{id}/recovery-amount` — mengembalikan jumlah record terdampak, breakdown per kategori, estimasi nilai, dan breakdown status. Semua angka dapat diverifikasi ulang dari `source_snapshot` di `impacted_records` atau dari query langsung ke database sumber.
-
-### 4. Recovery Process (Replay)
-`php artisan app:replay {impacted_record_id} [--dry-run]`
-
-Alur: cek idempotency key → cek kondisi target → (dry-run berhenti di sini) → kirim ulang ke target → verifikasi data benar-benar ada → tandai `verified`. Idempotent: dijalankan berulang tidak menduplikasi data maupun `recovery_actions`.
-
-## Skema Tabel (Platform)
-
-`services`, `health_checks`, `incidents`, `impacted_records`, `recovery_actions`.
-
-## Hasil Uji
-
-| Skenario | Hasil |
+| Endpoint | Isi |
 |---|---|
-| Payment-service mati (2 kejadian) | 61 dan 172 record `missing` terdeteksi; angka cocok dengan hitung manual di `order.db` |
-| Data uji amount berbeda | 1 record `inconsistent` terdeteksi |
-| Replay dijalankan 2x pada record yang sama | Eksekusi kedua ditolak (noop); `recovery_actions` tetap 1 baris |
-| Order-service mati | Incident terdeteksi, tetapi tidak ada record terdampak yang dapat ditemukan (lihat Keterbatasan) |
+| `GET references/{referensi}` | Hasil `cek_referensi` dan `cek_idx` |
+| `POST references/{referensi}/repair` | Tambah baris idx yang hilang. Body: `konfirmasi: true`, `baris: [{scenario, idx, debit, credit}]` |
 
-## Keterbatasan yang Diketahui
+Perbaikan: nama akun diambil dari template, nominal wajib dari pengguna, idx hanya boleh ditambah sebanyak
+kekurangannya menurut `cek_idx`, semuanya satu transaksi dan dicatat di `audit_repair_log`
+(nama pencatat dari header `X-Audit-User`). Cache tidak otomatis diperbarui; jalankan refresh.
 
-- **Request yang gagal total sebelum tersimpan** (mis. order-service sendiri yang mati) tidak meninggalkan jejak di database mana pun, sehingga tidak terdeteksi oleh perbandingan dua database. Dibutuhkan sumber data tambahan di luar service (mis. log API gateway).
-- **Kategori `duplicate`** belum dapat didemokan di simulasi karena tabel `payments` memiliki constraint `UNIQUE` pada `order_ref`. Logic-nya sudah ada di command.
-- Belum ada UI (dashboard monitoring dan admin UI perbaikan data), autentikasi, audit trail, dan alert otomatis.
+### Pola normal dan cache
 
-## Open Questions
+| Endpoint | Isi |
+|---|---|
+| `GET patterns` | Pola normal beserta jumlah referensi |
+| `POST patterns` | Tambah pola. Body: `pattern` (mis. `2,2,3`), `is_spx` |
+| `DELETE patterns/{pattern}` | Keluarkan pola (koma di URL ditulis `%2C`) |
+| `POST refresh` | Jalankan `refresh_audit()`. Setara `php artisan audit:refresh` |
 
-1. Database asli mewakili microservice yang mana, dan bagaimana skemanya?
-2. Kolom apa yang menjadi kunci pembanding antar tabel?
-3. Apakah discovery boleh dijalankan dengan akses read-only terlebih dahulu?
-4. Apakah kasus request gagal total termasuk dalam definisi "data terdampak"?
-5. Tingkat otomasi recovery: otomatis penuh atau butuh approval manual?
+Setelah mengubah pola normal atau memperbaiki data, jalankan refresh supaya `summary`, `anomalies`, dan
+`anomalies/idx` ikut berubah. `references/{referensi}` selalu langsung dari `journal_all`, tidak perlu refresh.
+
+## Keterbatasan yang diketahui
+
+- Jumlah kemunculan scenario dihitung dari total baris dibagi jumlah idx template (dibulatkan). Kalau banyak
+  baris hilang sekaligus, pembulatan bisa keliru, terutama untuk scenario berisi 2 idx.
+- Referensi dengan pola tidak dikenal tidak dicek per idx; yang muncul hanya polanya.
+- Kalau satu kejadian scenario hilang utuh dan pola barunya masih termasuk pola normal, tidak terdeteksi.
+- Belum ada UI.

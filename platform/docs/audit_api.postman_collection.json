@@ -1,0 +1,466 @@
+{
+  "info": {
+    "name": "Audit Jurnal API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "referensi",
+      "value": "001708799832"
+    }
+  ],
+  "item": [
+    {
+      "name": "Cek seluruh data",
+      "item": [
+        {
+          "name": "Report menyeluruh (lambat)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/report",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "report"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ringkasan",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "summary"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Semua anomali",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/anomalies?per_page=20&page=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "anomalies"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "20"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Anomali per jenis",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/anomalies?jenis=IDX_HILANG&per_page=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "anomalies"
+              ],
+              "query": [
+                {
+                  "key": "jenis",
+                  "value": "IDX_HILANG"
+                },
+                {
+                  "key": "per_page",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Idx hilang (semua anomali)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/anomalies/idx?tipe=hilang&per_page=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "anomalies",
+                "idx"
+              ],
+              "query": [
+                {
+                  "key": "tipe",
+                  "value": "hilang"
+                },
+                {
+                  "key": "per_page",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Idx kurang muncul (semua anomali)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/anomalies/idx?tipe=kurang&per_page=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "anomalies",
+                "idx"
+              ],
+              "query": [
+                {
+                  "key": "tipe",
+                  "value": "kurang"
+                },
+                {
+                  "key": "per_page",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Pola tidak dikenal",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/unknown-patterns?per_page=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "unknown-patterns"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Debit tidak sama credit",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/unbalanced?per_page=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "unbalanced"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Scenario tanpa template",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/scenarios-without-template",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "scenarios-without-template"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Satu referensi",
+      "item": [
+        {
+          "name": "Detail referensi",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/references/{{referensi}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "references",
+                "{{referensi}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Perbaiki idx hilang (referensi uji saja)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/references/TES-A-001/repair",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "references",
+                "TES-A-001",
+                "repair"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"konfirmasi\": true,\n  \"baris\": [\n    {\n      \"scenario\": 6,\n      \"idx\": 6,\n      \"debit\": 0,\n      \"credit\": 100\n    }\n  ]\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pola normal dan cache",
+      "item": [
+        {
+          "name": "Daftar pola normal",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/patterns",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "patterns"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Tambah pola normal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/patterns",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "patterns"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pattern\": \"2,2,2,2,3\",\n  \"is_spx\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "Keluarkan pola normal",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/patterns/2%2C2%2C2%2C2%2C3",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "patterns",
+                "2%2C2%2C2%2C2%2C3"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Refresh cache (sekitar 48 detik)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/audit/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "audit",
+                "refresh"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
