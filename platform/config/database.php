@@ -17,7 +17,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'pgsql'),
+    'default' => env('DB_CONNECTION', 'sqlite'),
 
     /*
     |--------------------------------------------------------------------------
@@ -113,6 +113,21 @@ return [
             // 'encrypt' => env('DB_ENCRYPT', 'yes'),
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
+
+        'order_sim' => [
+    'driver' => 'sqlite',
+    'database' => base_path('../sim/order-service/order.db'),
+    'prefix' => '',
+    'foreign_key_constraints' => true,
+],
+
+'payment_sim' => [
+    'driver' => 'sqlite',
+    'database' => base_path('../sim/payment-service/payment.db'),
+    'prefix' => '',
+    'foreign_key_constraints' => true,
+],
+
     ],
 
     /*
