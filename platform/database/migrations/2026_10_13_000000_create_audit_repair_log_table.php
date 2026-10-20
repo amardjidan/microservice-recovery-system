@@ -8,6 +8,11 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Tabel ini sudah ada di database yang sudah berjalan.
+        if (Schema::hasTable('audit_repair_log')) {
+            return;
+        }
+
         Schema::create('audit_repair_log', function (Blueprint $table) {
             $table->id();
             $table->text('referensi')->index();
