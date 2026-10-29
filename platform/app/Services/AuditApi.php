@@ -45,6 +45,17 @@ class AuditApi
         return $this->pastikan($res)->json();
     }
 
+    public function removeExtraIdx(string $ref, array $items, string $user): array
+    {
+    set_time_limit(150);
+    $res = $this->kirim(
+        'POST', 'references/'.rawurlencode($ref).'/remove-extra-idx',
+        ['konfirmasi' => true, 'idx' => $items], 120, ['X-Audit-User' => $user]
+    );
+
+    return $this->pastikan($res)->json();
+    }
+
     public function patterns(): array
     {
         return $this->pastikan($this->kirim('GET', 'patterns'))->json();

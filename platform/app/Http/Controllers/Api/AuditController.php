@@ -105,6 +105,26 @@ class AuditController extends Controller
         return response()->json($hasil, 201);
     }
 
+    public function removeExtraIdx(Request $r, string $referensi): JsonResponse
+{
+    $data = $r->validate([
+        'konfirmasi' => ['required', 'accepted'],
+        'idx' => ['required', 'array', 'min:1', 'max:50'],
+        'idx.*.scenario' => ['required', 'integer'],
+        'idx.*.idx' => ['required', 'integer', 'min:0'],
+    ]);
+
+    try {
+        $hasil = $this->audit->hapusIdxLebih(
+            $referensi, $data['idx'], substr((string) $r->header('X-Audit-User', 'api'), 0, 100)
+        );
+    } catch (InvalidArgumentException $e) {
+        return response()->json(['message' => $e->getMessage()], 422);
+    }
+
+    return response()->json($hasil);
+    }
+
     // ---- Pola normal ----
 
     public function patterns(): JsonResponse

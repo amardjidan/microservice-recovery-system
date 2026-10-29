@@ -100,28 +100,33 @@ class PolaNormal extends Page implements HasTable
             ])
             ->defaultSort('jumlah', 'desc')
             ->recordActions([
-                Action::make('keluarkan')
-                    ->label('Keluarkan')
-                    ->color('danger')
-                    ->requiresConfirmation()
-                    ->modalDescription('Referensi dengan pola ini akan dianggap tidak normal setelah audit ulang.')
-                    ->action(function (array $record, AuditApi $api) {
-                        try {
-                            $api->removePattern($record['pattern']);
-                        } catch (RuntimeException $e) {
-                            Notification::make()->title('Gagal mengeluarkan pola')->body($e->getMessage())->danger()->send();
+            Action::make('hapus')
+                ->label('Hapus')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->modalHeading(fn (array $record) => "Hapus pola {$record['pattern']}?")
+                ->modalDescription('Pola ini akan dihapus dari daftar pola normal. Referensi dengan pola ini akan dianggap tidak normal setelah audit ulang.')
+                ->modalSubmitActionLabel('Hapus')
+                ->action(function (array $record, AuditApi $api) {
+                    try {
+                        $api->removePattern($record['pattern']);
+                    } catch (RuntimeException $e) {
+                        Notification::make()->title('Gagal menghapus pola')->body($e->getMessage())->danger()->send();
 
-                            return;
-                        }
-                        AuditSummary::forget();
+                        return;
+                    }
+                    AuditSummary::forget();
 
-                        Notification::make()
-                            ->title("Pola {$record['pattern']} dikeluarkan")
-                            ->body('Jalankan audit ulang dari Ringkasan agar hitungan ikut berubah.')
-                            ->success()
-                            ->send();
-                    }),
-            ])
+                    // Buang cache baris tabel supaya daftar langsung memuat data terbaru
+                    $this->js('$wire.$refresh()');
+
+                    Notification::make()
+                        ->title("Pola {$record['pattern']} dihapus")
+                        ->body('Jalankan audit ulang dari Ringkasan agar hitungan ikut berubah.')
+                        ->success()
+                        ->send();
+            }),
+        ])
             ->paginated([25, 50, 100]);
     }
 }

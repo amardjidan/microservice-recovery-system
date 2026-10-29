@@ -17,6 +17,7 @@ Route::middleware(EnsureAuditToken::class)->prefix('audit')->group(function () {
     // ---- Cek dan perbaiki satu referensi ----
     Route::get('references/{referensi}', [AuditController::class, 'reference']);
     Route::post('references/{referensi}/repair', [AuditController::class, 'repair']);
+    Route::post('references/{referensi}/remove-extra-idx', [AuditController::class, 'removeExtraIdx']);
 
     // ---- Pola normal ----
     Route::get('patterns', [AuditController::class, 'patterns']);

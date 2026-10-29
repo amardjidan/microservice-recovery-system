@@ -108,4 +108,30 @@
             </form>
         </x-filament::section>
     @endif
+
+    @if (count($lebih))
+    <x-filament::section heading="Hapus idx yang berlebih"
+        description="Idx ini tidak ada di template scenario-nya. Baris yang dihapus dicatat di audit_repair_log lengkap dengan nominal, jadi bisa dipulihkan.">
+        <form wire:submit="hapusLebih" style="display:flex;flex-direction:column;gap:1rem">
+            @foreach ($lebih as $k => $b)
+                <label style="display:flex;align-items:center;gap:.5rem;font-size:.875rem">
+                    <x-filament::input.checkbox wire:model="lebih.{{ $k }}.pilih" />
+                    <span>Scenario {{ $b['scenario'] }} · idx {{ $b['idx'] }} ({{ $b['muncul'] }} baris)</span>
+                </label>
+            @endforeach
+
+            <label style="display:flex;align-items:flex-start;gap:.5rem;font-size:.875rem">
+                <x-filament::input.checkbox wire:model="konfirmasiHapus" />
+                <span>Saya sudah memeriksa dan setuju menghapus idx terpilih dari journal_all.</span>
+            </label>
+            @error('konfirmasiHapus')
+                <div style="font-size:.8125rem;color:rgb(var(--danger-600))">{{ $message }}</div>
+            @enderror
+
+            <div>
+                <x-filament::button type="submit" color="danger">Hapus idx terpilih</x-filament::button>
+            </div>
+        </form>
+    </x-filament::section>
+@endif
 </x-filament-panels::page>

@@ -22,6 +22,11 @@ class DetailReferensi extends Page
 
     public bool $konfirmasi = false;
 
+    /** Idx berlebih: [{scenario, idx, muncul, pilih}] */
+    public array $lebih = [];
+
+    public bool $konfirmasiHapus = false;
+
     public function mount(string $referensi): void
     {
         $this->referensi = $referensi;
@@ -54,22 +59,38 @@ class DetailReferensi extends Page
 
     private function muatBaris(): void
     {
-        $this->baris = [];
-        foreach ($this->data()['idx'] as $i) {
-            $n = (int) $i['max_muncul'] - (int) $i['muncul'];
-            if ($i['coa_name'] !== null && $n > 0) {
-                for ($k = 0; $k < $n; $k++) {
-                    $this->baris[] = [
-                        'scenario' => (int) $i['scenario'],
-                        'idx' => (int) $i['idx'],
-                        'coa' => $i['coa_name'],
-                        'debit' => '',
-                        'credit' => '',
-                    ];
-                }
+    $idxData = $this->data()['idx'];
+
+    $this->baris = [];
+    foreach ($idxData as $i) {
+        $n = (int) $i['max_muncul'] - (int) $i['muncul'];
+        if ($i['coa_name'] !== null && $n > 0) {
+            for ($k = 0; $k < $n; $k++) {
+                $this->baris[] = [
+                    'scenario' => (int) $i['scenario'],
+                    'idx' => (int) $i['idx'],
+                    'coa' => $i['coa_name'],
+                    'debit' => '',
+                    'credit' => '',
+                ];
             }
         }
-        $this->konfirmasi = false;
+    }
+
+    $this->lebih = [];
+    foreach ($idxData as $i) {
+        if ($i['coa_name'] === null && (int) $i['muncul'] > 0) {
+            $this->lebih[] = [
+                'scenario' => (int) $i['scenario'],
+                'idx' => (int) $i['idx'],
+                'muncul' => (int) $i['muncul'],
+                'pilih' => false,
+            ];
+        }
+    }
+
+    $this->konfirmasi = false;
+    $this->konfirmasiHapus = false;
     }
 
     public function repair(): void
@@ -111,5 +132,40 @@ class DetailReferensi extends Page
             ->send();
 
         $this->muatBaris();
+    }
+
+    public function hapusLebih(): void
+    {
+    $this->validate(
+        ['konfirmasiHapus' => ['accepted']],
+        ['konfirmasiHapus.accepted' => 'Centang dulu pernyataan konfirmasi penghapusan.']
+    );
+
+    $dipilih = array_values(array_filter($this->lebih, fn ($b) => ! empty($b['pilih'])));
+    if (! $dipilih) {
+        Notification::make()->title('Pilih minimal satu idx')->warning()->send();
+
+        return;
+    }
+
+    try {
+        $hasil = app(AuditApi::class)->removeExtraIdx(
+            $this->referensi,
+            array_map(fn ($b) => ['scenario' => $b['scenario'], 'idx' => $b['idx']], $dipilih),
+            auth()->user()?->email ?? 'filament'
+        );
+    } catch (InvalidArgumentException|RuntimeException $e) {
+        Notification::make()->title('Gagal menghapus idx')->body($e->getMessage())->danger()->send();
+
+        return;
+    }
+
+    Notification::make()
+        ->title(count($hasil['dihapus']).' baris dihapus dari journal_all')
+        ->body('Dicatat di audit_repair_log. Jalankan audit ulang dari Ringkasan agar daftar anomali ikut berubah.')
+        ->success()
+        ->send();
+
+    $this->muatBaris();
     }
 }

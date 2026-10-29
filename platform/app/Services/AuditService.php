@@ -290,6 +290,52 @@ class AuditService
         ];
     }
 
+    /**
+ * Hapus idx yang tidak ada di template (IDX_LEBIH). $items: [{scenario, idx}].
+ * Semua baris yang dihapus dicatat di audit_repair_log (aksi HAPUS) beserta nominalnya.
+ */
+public function hapusIdxLebih(string $ref, array $items, string $user): array
+{
+    $dihapus = [];
+
+    DB::transaction(function () use ($ref, $items, $user, &$dihapus) {
+        DB::selectOne('SELECT pg_advisory_xact_lock(hashtext(?))', [$ref]);
+
+        $status = collect(DB::select('SELECT * FROM cek_idx(?)', [$ref]))
+            ->keyBy(fn ($r) => $r->scenario.':'.$r->idx);
+
+        foreach ($items as $it) {
+            $s = (int) $it['scenario'];
+            $i = (int) $it['idx'];
+            $baris = $status->get("$s:$i");
+
+            // hanya idx yang ada di data tapi TIDAK ada di template
+            if (! $baris || $baris->coa_name !== null || (int) $baris->muncul < 1) {
+                throw new InvalidArgumentException("Idx $s:$i bukan idx berlebih, tidak dihapus.");
+            }
+
+            $rows = DB::select(
+                'DELETE FROM journal_all
+                 WHERE referensi = ? AND scenario = ? AND idx = ?
+                 RETURNING scenario, idx, coa_name, debit, credit',
+                [$ref, $s, $i]
+            );
+
+            foreach ($rows as $r) {
+                DB::insert(
+                    "INSERT INTO audit_repair_log
+                       (referensi, scenario, idx, coa_name, debit, credit, dibuat_oleh, aksi, created_at)
+                     VALUES (?,?,?,?,?,?,?, 'HAPUS', now())",
+                    [$ref, $r->scenario, $r->idx, $r->coa_name ?? '-', $r->debit, $r->credit, $user]
+                );
+                $dihapus[] = ['scenario' => $r->scenario, 'idx' => $r->idx, 'coa_name' => $r->coa_name];
+            }
+        }
+    });
+
+    return ['dihapus' => $dihapus, 'hasil_cek' => $this->reference($ref)];
+    }
+
     // ------------------------------------------------------------------
     // Pola normal
     // ------------------------------------------------------------------
