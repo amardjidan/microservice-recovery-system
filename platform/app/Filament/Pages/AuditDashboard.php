@@ -2,12 +2,12 @@
 
 namespace App\Filament\Pages;
 
-use App\Filament\Support\AuditSummary;
+// use App\Filament\Support\AuditSummary;
 use App\Services\AuditApi;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Dashboard;
-use Illuminate\Support\Facades\Cache;
+// use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 
 class AuditDashboard extends Dashboard
@@ -27,34 +27,23 @@ class AuditDashboard extends Dashboard
             Action::make('refresh')
                 ->label('Jalankan audit ulang')
                 ->requiresConfirmation()
-                ->modalDescription('Menghitung ulang seluruh data, sekitar 30 detik. Jangan tutup halaman ini.')
+                ->modalDescription('Audit dijalankan di latar belakang (sekitar 20 detik). Anda boleh meninggalkan halaman ini.')
                 ->action(function (AuditApi $api) {
-                    set_time_limit(300);
-                    $mulai = microtime(true);
-
-                    // Penanda: selama audit berjalan, widget memakai ringkasan terakhir
-                    // (tidak memanggil API yang sedang sibuk).
-                    Cache::put('audit.berjalan', true, 120);
-
                     try {
                         $api->refresh();
                     } catch (RuntimeException $e) {
-                        Notification::make()->title('Audit ulang gagal')->body($e->getMessage())->danger()->send();
+                        Notification::make()->title('Audit ulang gagal dimulai')->body($e->getMessage())->danger()->send();
 
                         return;
-                    } finally {
-                        Cache::forget('audit.berjalan');
                     }
 
-                    AuditSummary::forget();
-
                     Notification::make()
-                        ->title('Audit ulang selesai dalam '.round(microtime(true) - $mulai, 1).' detik')
+                        ->title('Audit dijalankan di latar belakang')
+                        ->body('Status tampil di halaman Ringkasan.')
                         ->success()
                         ->send();
 
-                    // Tanpa reload halaman: widget ringkasan menyegarkan dirinya lewat event ini.
-                    $this->dispatch('audit-selesai');
+                    $this->dispatch('audit-selesai'); // segarkan status di widget
                 }),
         ];
     }

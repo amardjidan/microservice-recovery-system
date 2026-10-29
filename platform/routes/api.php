@@ -26,4 +26,5 @@ Route::middleware(EnsureAuditToken::class)->prefix('audit')->group(function () {
 
     // ---- Cache ----
     Route::post('refresh', [AuditController::class, 'refresh']);
+    Route::get('refresh/status', [AuditController::class, 'refreshStatus']);
 });

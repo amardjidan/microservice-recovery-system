@@ -82,9 +82,15 @@ class AuditApi
     }
 
     /** CALL refresh_audit() di sisi API (sekitar 20 detik). */
-    public function refresh(): void
+    /** Memulai audit di latar belakang. */
+    public function refresh(): array
     {
-        $this->pastikan($this->kirim('POST', 'refresh', [], 300));
+        return $this->pastikan($this->kirim('POST', 'refresh'))->json();
+    }
+
+    public function refreshStatus(): array
+    {
+        return $this->pastikan($this->kirim('GET', 'refresh/status'))->json();
     }
 
     // ------------------------------------------------------------------

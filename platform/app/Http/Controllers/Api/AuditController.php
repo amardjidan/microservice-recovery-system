@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\AuditService;
+use App\Jobs\RefreshAuditJob;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
@@ -155,13 +157,22 @@ class AuditController extends Controller
 
     // ---- Cache ----
 
-    public function refresh(): JsonResponse
+        public function refresh(): JsonResponse
     {
-        set_time_limit(300);
-        $mulai = microtime(true);
-        $this->audit->refresh();
+        // Hanya satu audit pada satu waktu
+        if (! Cache::add('audit.berjalan', true, 900)) {
+            return response()->json(['status' => 'berjalan', 'pesan' => 'Audit sedang berjalan.'], 202);
+        }
 
-        return response()->json(['selesai' => true, 'detik' => round(microtime(true) - $mulai, 1)]);
+        Cache::forever('audit.status', ['status' => 'berjalan', 'mulai' => now()->toIso8601String()]);
+        RefreshAuditJob::dispatch();
+
+        return response()->json(['status' => 'berjalan'], 202);
+    }
+
+    public function refreshStatus(): JsonResponse
+    {
+        return response()->json(Cache::get('audit.status', ['status' => 'belum_pernah']));
     }
 
     // ---- Bantuan ----

@@ -4,8 +4,10 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Resources\AuditAnomaliResource;
 use App\Filament\Support\AuditSummary as S;
+use App\Services\AuditApi;
 use Filament\Widgets\Widget;
 use Livewire\Attributes\On;
+
 
 /**
  * Seluruh isi dashboard dalam SATU widget (kartu angka, proporsi, dua tabel pola),
@@ -62,6 +64,16 @@ class AuditStats extends Widget
                 ['judul' => 'Pola normal teratas', 'rows' => $baris($s['pola_normal_top'])],
             ],
             'diperbarui' => now()->format('H:i:s'),
+            'statusAudit' => $this->statusAudit(),
         ];
+    }
+
+        private function statusAudit(): ?array
+    {
+        try {
+            return app(AuditApi::class)->refreshStatus();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

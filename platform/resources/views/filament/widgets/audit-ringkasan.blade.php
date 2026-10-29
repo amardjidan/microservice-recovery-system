@@ -1,5 +1,14 @@
 <x-filament-widgets::widget>
     <div wire:poll.30s style="display:flex;flex-direction:column;gap:1rem">
+                @if (($statusAudit['status'] ?? null) === 'berjalan')
+            <div style="padding:.75rem 1rem;border-radius:.5rem;border:1px solid #f59e0b;color:#f59e0b;font-size:.875rem">
+                Audit sedang berjalan di latar belakang. Angka akan diperbarui otomatis setelah selesai.
+            </div>
+        @elseif (($statusAudit['status'] ?? null) === 'gagal')
+            <div style="padding:.75rem 1rem;border-radius:.5rem;border:1px solid #ef4444;color:#ef4444;font-size:.875rem">
+                Audit terakhir gagal: {{ $statusAudit['pesan'] ?? 'tidak diketahui' }}
+            </div>
+        @endif
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:1rem">
             @foreach ($kartu as $k)
                 <x-filament::section>
@@ -58,6 +67,6 @@
             @endforeach
         </div>
 
-        <div style="font-size:.75rem;opacity:.55;text-align:right">Diperbarui {{ $diperbarui }} · otomatis tiap 15 detik</div>
+        <div style="font-size:.75rem;opacity:.55;text-align:right">Diperbarui {{ $diperbarui }} · otomatis tiap 30 detik</div>
     </div>
 </x-filament-widgets::widget>
