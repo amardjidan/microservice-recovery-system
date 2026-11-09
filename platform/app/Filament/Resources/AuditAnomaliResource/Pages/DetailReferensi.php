@@ -59,7 +59,17 @@ class DetailReferensi extends Page
 
     private function muatBaris(): void
     {
-    $idxData = $this->data()['idx'];
+        try {
+        $idxData = $this->data()['idx'];
+    } catch (RuntimeException $e) {
+        Notification::make()
+            ->title('Perubahan tersimpan')
+            ->body('Tabel belum bisa dimuat ulang. Muat ulang halaman sebentar lagi.')
+            ->warning()
+            ->send();
+
+        return;
+    }
 
     $this->baris = [];
     foreach ($idxData as $i) {
@@ -127,45 +137,51 @@ class DetailReferensi extends Page
 
         Notification::make()
             ->title(count($hasil['ditambahkan']).' baris ditambahkan ke journal_all')
-            ->body('Dicatat di audit_repair_log. Jalankan audit ulang dari Ringkasan agar daftar anomali ikut berubah.')
+            ->body('Audit ulang berjalan otomatis di latar belakang.')
             ->success()
             ->send();
 
         $this->muatBaris();
     }
 
-    public function hapusLebih(): void
+        public function hapusLebih(): void
     {
-    $this->validate(
-        ['konfirmasiHapus' => ['accepted']],
-        ['konfirmasiHapus.accepted' => 'Centang dulu pernyataan konfirmasi penghapusan.']
-    );
-
-    $dipilih = array_values(array_filter($this->lebih, fn ($b) => ! empty($b['pilih'])));
-    if (! $dipilih) {
-        Notification::make()->title('Pilih minimal satu idx')->warning()->send();
-
-        return;
-    }
-
-    try {
-        $hasil = app(AuditApi::class)->removeExtraIdx(
-            $this->referensi,
-            array_map(fn ($b) => ['scenario' => $b['scenario'], 'idx' => $b['idx']], $dipilih),
-            auth()->user()?->email ?? 'filament'
+        $this->validate(
+            ['konfirmasiHapus' => ['accepted']],
+            ['konfirmasiHapus.accepted' => 'Centang dulu pernyataan konfirmasi penghapusan.']
         );
-    } catch (InvalidArgumentException|RuntimeException $e) {
-        Notification::make()->title('Gagal menghapus idx')->body($e->getMessage())->danger()->send();
 
-        return;
-    }
+        $dipilih = array_values(array_filter($this->lebih, fn ($b) => ! empty($b['pilih'])));
+        if (! $dipilih) {
+            Notification::make()->title('Pilih minimal satu idx')->warning()->send();
 
-    Notification::make()
-        ->title(count($hasil['dihapus']).' baris dihapus dari journal_all')
-        ->body('Dicatat di audit_repair_log. Jalankan audit ulang dari Ringkasan agar daftar anomali ikut berubah.')
-        ->success()
-        ->send();
+            return;
+        }
 
-    $this->muatBaris();
+        try {
+            $hasil = app(AuditApi::class)->removeExtraIdx(
+                $this->referensi,
+                array_map(fn ($b) => ['scenario' => $b['scenario'], 'idx' => $b['idx']], $dipilih),
+                auth()->user()?->email ?? 'filament'
+            );
+        } catch (InvalidArgumentException|RuntimeException $e) {
+            Notification::make()->title('Gagal menghapus idx')->body($e->getMessage())->danger()->send();
+
+            // Segarkan daftar supaya idx yang sudah terhapus tidak tertinggal
+            $this->muatBaris();
+
+            return;
+        }
+
+        $dihapus = $hasil['dihapus'] ?? 0;
+        $jumlah = is_array($dihapus) ? count($dihapus) : (int) $dihapus;
+
+        Notification::make()
+            ->title($jumlah.' baris idx lebih dihapus dari journal_all')
+            ->body('Dicatat di audit_repair_log. Audit ulang berjalan otomatis di latar belakang.')
+            ->success()
+            ->send();
+
+        $this->muatBaris();
     }
 }

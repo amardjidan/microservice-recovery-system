@@ -103,7 +103,7 @@ class AuditController extends Controller
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
-
+        $this->jadwalkanAudit();
         return response()->json($hasil, 201);
     }
 
@@ -124,6 +124,8 @@ class AuditController extends Controller
         return response()->json(['message' => $e->getMessage()], 422);
     }
 
+    $this->jadwalkanAudit();
+    
     return response()->json($hasil);
     }
 
@@ -157,17 +159,11 @@ class AuditController extends Controller
 
     // ---- Cache ----
 
-        public function refresh(): JsonResponse
+       public function refresh(): JsonResponse
     {
-        // Hanya satu audit pada satu waktu
-        if (! Cache::add('audit.berjalan', true, 900)) {
-            return response()->json(['status' => 'berjalan', 'pesan' => 'Audit sedang berjalan.'], 202);
-        }
+    $this->jadwalkanAudit();
 
-        Cache::forever('audit.status', ['status' => 'berjalan', 'mulai' => now()->toIso8601String()]);
-        RefreshAuditJob::dispatch();
-
-        return response()->json(['status' => 'berjalan'], 202);
+    return response()->json(['status' => 'berjalan'], 202);
     }
 
     public function refreshStatus(): JsonResponse
@@ -193,5 +189,17 @@ class AuditController extends Controller
     private function perPage(array $f): int
     {
         return (int) ($f['per_page'] ?? 50);
+    }
+
+    // helper audit refresh 
+        private function jadwalkanAudit(): void
+    {
+        if (Cache::add('audit.berjalan', true, 900)) {
+            Cache::forever('audit.status', ['status' => 'berjalan', 'mulai' => now()->toIso8601String()]);
+            RefreshAuditJob::dispatch();
+        } else {
+            // Audit sedang jalan: minta diulang setelah selesai
+            Cache::put('audit.ulang', true, 900);
+        }
     }
 }

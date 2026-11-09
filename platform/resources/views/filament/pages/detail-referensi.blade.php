@@ -102,7 +102,7 @@
                 @enderror
 
                 <div>
-                    <x-filament::button type="submit">Tambahkan baris</x-filament::button>
+                    <x-filament::button type="submit" wire:loading.attr="disabled" wire:target="repair">Tambahkan baris</x-filament::button>
                 </div>
                 <div style="font-size:.75rem;opacity:.6">Setiap penambahan dicatat di audit_repair_log.</div>
             </form>
@@ -129,7 +129,7 @@
             @enderror
 
             <div>
-                <x-filament::button type="submit" color="danger">Hapus idx terpilih</x-filament::button>
+                <x-filament::button type="submit" color="danger" wire:loading.attr="disabled" wire:target="hapusLebih">Hapus idx terpilih</x-filament::button>
             </div>
         </form>
     </x-filament::section>

@@ -38,5 +38,11 @@ class RefreshAuditJob implements ShouldQueue
             'status' => 'selesai', 'mulai' => $awal, 'selesai' => now()->toIso8601String(),
             'detik' => round(microtime(true) - $mulai, 1),
         ]);
+
+                // Ada recovery yang masuk saat audit berjalan: ulangi sekali
+        if (Cache::pull('audit.ulang') && Cache::add('audit.berjalan', true, 900)) {
+            Cache::forever('audit.status', ['status' => 'berjalan', 'mulai' => now()->toIso8601String()]);
+            self::dispatch();
+            }
     }
 }

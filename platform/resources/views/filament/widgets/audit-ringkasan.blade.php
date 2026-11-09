@@ -2,7 +2,7 @@
     <div wire:poll.30s style="display:flex;flex-direction:column;gap:1rem">
                 @if (($statusAudit['status'] ?? null) === 'berjalan')
             <div style="padding:.75rem 1rem;border-radius:.5rem;border:1px solid #f59e0b;color:#f59e0b;font-size:.875rem">
-                Audit sedang berjalan di latar belakang. Angka akan diperbarui otomatis setelah selesai.
+                Audit sedang berjalan. Angka akan diperbarui otomatis setelah selesai.
             </div>
         @elseif (($statusAudit['status'] ?? null) === 'gagal')
             <div style="padding:.75rem 1rem;border-radius:.5rem;border:1px solid #ef4444;color:#ef4444;font-size:.875rem">

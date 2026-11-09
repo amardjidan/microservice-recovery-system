@@ -38,8 +38,8 @@ class AuditDashboard extends Dashboard
                     }
 
                     Notification::make()
-                        ->title('Audit dijalankan di latar belakang')
-                        ->body('Status tampil di halaman Ringkasan.')
+                        ->title('Audit sedang dijalankan')
+                        ->body('Data akan diperbarui setelah proses selesai.')
                         ->success()
                         ->send();
 
