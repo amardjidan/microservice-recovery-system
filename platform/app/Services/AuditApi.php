@@ -130,4 +130,11 @@ class AuditApi
 
         return $res;
     }
+    /** Riwayat recovery satu halaman: ['total', 'page', 'per_page', 'data' => [...]]. */
+    public function riwayat(array $filter, int $page, int $perPage): array
+    {
+        $query = array_filter($filter, fn ($v) => filled($v)) + ['page' => $page, 'per_page' => $perPage];
+
+        return $this->pastikan($this->kirim('GET', 'repairs', $query))->json();
+    }
 }

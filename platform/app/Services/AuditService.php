@@ -220,14 +220,64 @@ class AuditService
         ];
     }
 
+    /** Riwayat recovery satu halaman, terbaru di atas. */
+    public function riwayat(array $f, int $page, int $perPage): array
+    {
+        $q = DB::table('audit_repair_log');
+
+        if (filled($f['referensi'] ?? null)) {
+            $q->where('referensi', 'ilike', '%'.$f['referensi'].'%');
+        }
+        if (filled($f['aksi'] ?? null)) {
+            $q->where('aksi', $f['aksi']);
+        }
+
+        $total = (clone $q)->count();
+        $data = $q->orderByDesc('created_at')->orderByDesc('id')
+            ->forPage($page, $perPage)
+            ->get();
+
+        return [
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'data' => $data->map(fn ($r) => (array) $r)->all(),
+        ];
+    }
+
+    /** Keadaan referensi sebelum perubahan: jenis per scenario dan muncul per idx. */
+    private function snapshotRef(string $ref): array
+    {
+        $d = $this->reference($ref);
+
+        $jenis = [];
+        foreach ($d['scenario'] as $sc) {
+            $jenis[(int) $sc->scenario] = $sc->jenis;
+        }
+
+        $idx = [];
+        foreach ($d['idx'] as $i) {
+            $idx[(int) $i->scenario.':'.(int) $i->idx] = [
+                'muncul' => (int) $i->muncul,
+                // index yang tidak ada di template tidak punya "seharusnya"
+                'seharusnya' => $i->coa_name === null ? 0 : (int) $i->max_muncul,
+            ];
+        }
+
+        return ['jenis' => $jenis, 'idx' => $idx];
+    }
+
     /**
      * Perbaiki idx yang hilang. Nama akun dari template; nominal WAJIB dari user.
      * $rows: [{scenario, idx, debit, credit}]. Satu transaksi; semua dicatat di audit_repair_log.
      * Validasi: idx harus ada di template DAN memang kurang muncul menurut cek_idx().
      */
-    public function repair(string $ref, array $rows, string $user): array
+        public function repair(string $ref, array $rows, string $user): array
     {
-        DB::transaction(function () use ($ref, $rows, $user, &$inserted) {
+        $sebelum = $this->snapshotRef($ref);
+        $inserted = [];
+
+        DB::transaction(function () use ($ref, $rows, $user, $sebelum, &$inserted) {
             // Cegah dua perbaikan bersamaan untuk referensi yang sama.
             DB::selectOne('SELECT pg_advisory_xact_lock(hashtext(?))', [$ref]);
 
@@ -242,18 +292,19 @@ class AuditService
             foreach ($diminta as $k => $n) {
                 $s = $status->get($k);
                 if (! $s || $s->coa_name === null) {
-                    throw new InvalidArgumentException("Idx $k tidak ada di template / referensi ini.");
+                    throw new InvalidArgumentException("Index $k tidak ada di template / referensi ini.");
                 }
                 $kurang = (int) $s->max_muncul - (int) $s->muncul;
                 if ($n > $kurang) {
-                    throw new InvalidArgumentException("Idx $k hanya kurang $kurang baris, diminta $n.");
+                    throw new InvalidArgumentException("IndexIdx $k hanya kurang $kurang baris, diminta $n.");
                 }
             }
 
-            $inserted = [];
+            $sesudahMap = [];
             foreach ($rows as $r) {
                 $s = (int) $r['scenario'];
                 $i = (int) $r['idx'];
+                $k = "$s:$i";
 
                 // tanggal dan source_month disalin dari baris lain di scenario yang sama
                 $base = DB::selectOne(
@@ -262,7 +313,7 @@ class AuditService
                 $tpl = DB::selectOne(
                     'SELECT coa_name FROM scenario_template WHERE scenario = ? AND idx = ?', [$s, $i]);
                 if (! $base || ! $tpl) {
-                    throw new InvalidArgumentException("Data dasar scenario $s idx $i tidak ditemukan.");
+                    throw new InvalidArgumentException("Data dasar scenario $s index $i tidak ditemukan.");
                 }
 
                 DB::insert(
@@ -273,12 +324,19 @@ class AuditService
                         $r['debit'], $r['credit'], $base->source_month]
                 );
 
+                $mulai = $sesudahMap[$k] ?? ($sebelum['idx'][$k]['muncul'] ?? 0);
+                $sesudahMap[$k] = $mulai + 1;
+
                 DB::insert(
                     'INSERT INTO audit_repair_log
-                       (referensi, scenario, idx, coa_name, debit, credit, dibuat_oleh, created_at)
-                     VALUES (?,?,?,?,?,?,?, now())',
-                    [$ref, $s, $i, $tpl->coa_name, $r['debit'], $r['credit'], $user]
+                       (referensi, scenario, idx, coa_name, debit, credit, dibuat_oleh, created_at, aksi,
+                        jenis, muncul_sebelum, muncul_sesudah, seharusnya)
+                     VALUES (?,?,?,?,?,?,?, now(), ?, ?, ?, ?, ?)',
+                    [$ref, $s, $i, $tpl->coa_name, $r['debit'], $r['credit'], $user, 'TAMBAH',
+                        $sebelum['jenis'][$s] ?? null, $mulai, $mulai + 1,
+                        $sebelum['idx'][$k]['seharusnya'] ?? null]
                 );
+
                 $inserted[] = ['scenario' => $s, 'idx' => $i, 'coa_name' => $tpl->coa_name];
             }
         });
@@ -294,46 +352,60 @@ class AuditService
  * Hapus idx yang tidak ada di template (IDX_LEBIH). $items: [{scenario, idx}].
  * Semua baris yang dihapus dicatat di audit_repair_log (aksi HAPUS) beserta nominalnya.
  */
-public function hapusIdxLebih(string $ref, array $items, string $user): array
-{
-    $dihapus = [];
+    /**
+     * Hapus idx yang tidak ada di template (IDX_LEBIH). $items: [{scenario, idx}].
+     * Semua baris yang dihapus dicatat di audit_repair_log (aksi HAPUS) beserta nominalnya.
+     */
+    public function hapusIdxLebih(string $ref, array $items, string $user): array
+    {
+        $sebelum = $this->snapshotRef($ref);
+        $dihapus = [];
 
-    DB::transaction(function () use ($ref, $items, $user, &$dihapus) {
-        DB::selectOne('SELECT pg_advisory_xact_lock(hashtext(?))', [$ref]);
+        DB::transaction(function () use ($ref, $items, $user, $sebelum, &$dihapus) {
+            DB::selectOne('SELECT pg_advisory_xact_lock(hashtext(?))', [$ref]);
 
-        $status = collect(DB::select('SELECT * FROM cek_idx(?)', [$ref]))
-            ->keyBy(fn ($r) => $r->scenario.':'.$r->idx);
+            $status = collect(DB::select('SELECT * FROM cek_idx(?)', [$ref]))
+                ->keyBy(fn ($r) => $r->scenario.':'.$r->idx);
 
-        foreach ($items as $it) {
-            $s = (int) $it['scenario'];
-            $i = (int) $it['idx'];
-            $baris = $status->get("$s:$i");
+            $sesudahMap = [];
+            foreach ($items as $it) {
+                $s = (int) $it['scenario'];
+                $i = (int) $it['idx'];
+                $k = "$s:$i";
+                $baris = $status->get($k);
 
-            // hanya idx yang ada di data tapi TIDAK ada di template
-            if (! $baris || $baris->coa_name !== null || (int) $baris->muncul < 1) {
-                throw new InvalidArgumentException("Idx $s:$i bukan idx berlebih, tidak dihapus.");
-            }
+                // hanya idx yang ada di data tapi TIDAK ada di template
+                if (! $baris || $baris->coa_name !== null || (int) $baris->muncul < 1) {
+                    throw new InvalidArgumentException("Index $k bukan idx berlebih, tidak dihapus.");
+                }
 
-            $rows = DB::select(
-                'DELETE FROM journal_all
-                 WHERE referensi = ? AND scenario = ? AND idx = ?
-                 RETURNING scenario, idx, coa_name, debit, credit',
-                [$ref, $s, $i]
-            );
-
-            foreach ($rows as $r) {
-                DB::insert(
-                    "INSERT INTO audit_repair_log
-                       (referensi, scenario, idx, coa_name, debit, credit, dibuat_oleh, aksi, created_at)
-                     VALUES (?,?,?,?,?,?,?, 'HAPUS', now())",
-                    [$ref, $r->scenario, $r->idx, $r->coa_name ?? '-', $r->debit, $r->credit, $user]
+                $rows = DB::select(
+                    'DELETE FROM journal_all
+                     WHERE referensi = ? AND scenario = ? AND idx = ?
+                     RETURNING scenario, idx, coa_name, debit, credit',
+                    [$ref, $s, $i]
                 );
-                $dihapus[] = ['scenario' => $r->scenario, 'idx' => $r->idx, 'coa_name' => $r->coa_name];
-            }
-        }
-    });
 
-    return ['dihapus' => $dihapus, 'hasil_cek' => $this->reference($ref)];
+                foreach ($rows as $r) {
+                    $mulai = $sesudahMap[$k] ?? ($sebelum['idx'][$k]['muncul'] ?? 0);
+                    $sesudahMap[$k] = $mulai - 1;
+
+                    DB::insert(
+                        'INSERT INTO audit_repair_log
+                           (referensi, scenario, idx, coa_name, debit, credit, dibuat_oleh, created_at, aksi,
+                            jenis, muncul_sebelum, muncul_sesudah, seharusnya)
+                         VALUES (?,?,?,?,?,?,?, now(), ?, ?, ?, ?, ?)',
+                        [$ref, $r->scenario, $r->idx, $r->coa_name, $r->debit, $r->credit, $user, 'HAPUS',
+                            $sebelum['jenis'][$r->scenario] ?? null, $mulai, $mulai - 1,
+                            $sebelum['idx'][$k]['seharusnya'] ?? null]
+                    );
+
+                    $dihapus[] = ['scenario' => $r->scenario, 'idx' => $r->idx, 'coa_name' => $r->coa_name];
+                }
+            }
+        });
+
+        return ['dihapus' => $dihapus, 'hasil_cek' => $this->reference($ref)];
     }
 
     // ------------------------------------------------------------------

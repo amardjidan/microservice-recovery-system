@@ -76,12 +76,13 @@ class DetailReferensi extends Page
         $n = (int) $i['max_muncul'] - (int) $i['muncul'];
         if ($i['coa_name'] !== null && $n > 0) {
             for ($k = 0; $k < $n; $k++) {
-                $this->baris[] = [
+                    $this->baris[] = [
                     'scenario' => (int) $i['scenario'],
                     'idx' => (int) $i['idx'],
                     'coa' => $i['coa_name'],
                     'debit' => '',
                     'credit' => '',
+                    'pilih' => false,
                 ];
             }
         }
@@ -103,14 +104,23 @@ class DetailReferensi extends Page
     $this->konfirmasiHapus = false;
     }
 
-    public function repair(): void
+        public function repair(): void
     {
-        $this->validate([
-            'konfirmasi' => ['accepted'],
-            'baris' => ['required', 'array', 'min:1', 'max:50'],
-            'baris.*.debit' => ['required', 'numeric', 'min:0'],
-            'baris.*.credit' => ['required', 'numeric', 'min:0'],
-        ], [
+        $dipilih = array_filter($this->baris, fn ($b) => ! empty($b['pilih']));
+
+        if (! $dipilih) {
+            Notification::make()->title('Pilih minimal satu baris')->warning()->send();
+
+            return;
+        }
+
+        $aturan = ['konfirmasi' => ['accepted']];
+        foreach ($dipilih as $k => $b) {
+            $aturan["baris.$k.debit"] = ['required', 'numeric', 'min:0'];
+            $aturan["baris.$k.credit"] = ['required', 'numeric', 'min:0'];
+        }
+
+        $this->validate($aturan, [
             'konfirmasi.accepted' => 'Centang dulu pernyataan bahwa nominal sudah diperiksa.',
             'baris.*.debit.required' => 'Debit wajib diisi (isi 0 kalau tidak ada).',
             'baris.*.credit.required' => 'Kredit wajib diisi (isi 0 kalau tidak ada).',
@@ -118,12 +128,12 @@ class DetailReferensi extends Page
             'baris.*.credit.numeric' => 'Kredit harus angka.',
         ]);
 
-        $rows = array_map(fn ($b) => [
+        $rows = array_values(array_map(fn ($b) => [
             'scenario' => (int) $b['scenario'],
             'idx' => (int) $b['idx'],
             'debit' => $b['debit'],
             'credit' => $b['credit'],
-        ], $this->baris);
+        ], $dipilih));
 
         try {
             $hasil = app(AuditApi::class)->repair(
@@ -153,7 +163,7 @@ class DetailReferensi extends Page
 
         $dipilih = array_values(array_filter($this->lebih, fn ($b) => ! empty($b['pilih'])));
         if (! $dipilih) {
-            Notification::make()->title('Pilih minimal satu idx')->warning()->send();
+            Notification::make()->title('Pilih minimal satu index')->warning()->send();
 
             return;
         }
@@ -165,7 +175,7 @@ class DetailReferensi extends Page
                 auth()->user()?->email ?? 'filament'
             );
         } catch (InvalidArgumentException|RuntimeException $e) {
-            Notification::make()->title('Gagal menghapus idx')->body($e->getMessage())->danger()->send();
+            Notification::make()->title('Gagal menghapus index')->body($e->getMessage())->danger()->send();
 
             // Segarkan daftar supaya idx yang sudah terhapus tidak tertinggal
             $this->muatBaris();
@@ -177,7 +187,7 @@ class DetailReferensi extends Page
         $jumlah = is_array($dihapus) ? count($dihapus) : (int) $dihapus;
 
         Notification::make()
-            ->title($jumlah.' baris idx lebih dihapus dari journal_all')
+            ->title($jumlah.' baris index lebih dihapus dari journal_all')
             ->body('Dicatat di audit_repair_log. Audit ulang berjalan otomatis di latar belakang.')
             ->success()
             ->send();

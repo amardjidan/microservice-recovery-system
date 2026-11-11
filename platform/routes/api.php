@@ -9,6 +9,7 @@ Route::middleware(EnsureAuditToken::class)->prefix('audit')->group(function () {
     Route::get('report', [AuditController::class, 'report']);
     Route::get('summary', [AuditController::class, 'summary']);
     Route::get('anomalies', [AuditController::class, 'anomalies']);
+    Route::get('repairs', [AuditController::class, 'riwayat']);
     Route::get('anomalies/idx', [AuditController::class, 'anomalyIdx']);
     Route::get('unknown-patterns', [AuditController::class, 'unknownPatterns']);
     Route::get('unbalanced', [AuditController::class, 'unbalanced']);

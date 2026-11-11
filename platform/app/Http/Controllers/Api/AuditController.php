@@ -43,6 +43,17 @@ class AuditController extends Controller
         return response()->json($this->audit->anomalies($f, $this->page($f), $this->perPage($f)));
     }
 
+    public function riwayat(Request $r): JsonResponse
+    {
+    $f = $r->validate([
+        'referensi' => ['nullable', 'string', 'max:50'],
+        'aksi' => ['nullable', 'in:TAMBAH,HAPUS'],
+        ...$this->pageRules(),
+    ]);
+
+    return response()->json($this->audit->riwayat($f, $this->page($f), $this->perPage($f)));
+    }
+
     public function anomalyIdx(Request $r): JsonResponse
     {
         $f = $r->validate([
@@ -125,7 +136,7 @@ class AuditController extends Controller
     }
 
     $this->jadwalkanAudit();
-    
+
     return response()->json($hasil);
     }
 

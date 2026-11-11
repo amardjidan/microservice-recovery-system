@@ -26,7 +26,7 @@
                 <div style="font-size:1.5rem;font-weight:600">{{ $sc['max_cnt'] }} / {{ $sc['min_cnt'] }}</div>
             </x-filament::section>
             <x-filament::section>
-                <div style="font-size:.8125rem;opacity:.7">Idx ditemukan / seharusnya</div>
+                <div style="font-size:.8125rem;opacity:.7">Index ditemukan / seharusnya</div>
                 <div style="font-size:1.5rem;font-weight:600">{{ $sc['idx_ditemukan'] }} / {{ $sc['idx_seharusnya'] }}</div>
             </x-filament::section>
             <x-filament::section>
@@ -35,12 +35,12 @@
             </x-filament::section>
         </div>
 
-        <x-filament::section :heading="'Idx per scenario '.$sc['scenario']" compact>
+        <x-filament::section :heading="'Index per scenario '.$sc['scenario']" compact>
             <div style="overflow-x:auto;margin:0 -1rem">
                 <table style="width:100%;border-collapse:collapse;font-size:.875rem">
                     <thead>
                         <tr>
-                            <th style="{{ $th }}">Idx</th>
+                            <th style="{{ $th }}">Index</th>
                             <th style="{{ $th }}">Nama akun (COA)</th>
                             <th style="{{ $th }};text-align:right">Muncul</th>
                             <th style="{{ $th }};text-align:right">Seharusnya</th>
@@ -63,26 +63,30 @@
         </x-filament::section>
     @endforeach
 
-    @if (count($baris))
-        <x-filament::section heading="Perbaiki idx yang hilang"
-            description="Nama akun, tanggal, dan bulan sumber diambil otomatis. Nominal harus Anda isi sendiri; sistem tidak menebaknya.">
+        @if (count($baris))
+        @php $jumlahPilih = collect($baris)->where('pilih', true)->count(); @endphp
+        <x-filament::section heading="Perbaiki index yang hilang"
+            description="Centang baris yang ingin direcovery sekarang. Nama akun, tanggal, dan bulan sumber diambil otomatis. Nominal harus Anda isi sendiri.">
             <form wire:submit="repair" style="display:flex;flex-direction:column;gap:1rem">
                 @foreach ($baris as $k => $b)
-                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:1rem;align-items:end">
-                        <div>
-                            <div style="font-family:ui-monospace,Menlo,monospace;font-size:.75rem;opacity:.65">Scenario {{ $b['scenario'] }} · idx {{ $b['idx'] }}</div>
-                            <div style="font-size:.875rem">{{ $b['coa'] }}</div>
-                        </div>
+                    <div style="display:grid;grid-template-columns:minmax(12rem,1.2fr) repeat(2,minmax(10rem,1fr));gap:1rem;align-items:end">
+                        <label style="display:flex;align-items:center;gap:.6rem;font-size:.875rem;padding-bottom:.5rem">
+                            <x-filament::input.checkbox wire:model.live="baris.{{ $k }}.pilih" />
+                            <span>
+                                <span style="display:block;font-family:ui-monospace,Menlo,monospace;font-size:.75rem;opacity:.65">Scenario {{ $b['scenario'] }} · index {{ $b['idx'] }}</span>
+                                {{ $b['coa'] }}
+                            </span>
+                        </label>
                         <label style="font-size:.8125rem">
                             <span style="opacity:.7">Debit</span>
                             <x-filament::input.wrapper :valid="! $errors->has('baris.'.$k.'.debit')">
-                                <x-filament::input type="number" step="0.01" min="0" wire:model="baris.{{ $k }}.debit" />
+                                <x-filament::input type="number" step="0.01" min="0" :disabled="empty($b['pilih'])" wire:model="baris.{{ $k }}.debit" />
                             </x-filament::input.wrapper>
                         </label>
                         <label style="font-size:.8125rem">
                             <span style="opacity:.7">Kredit</span>
                             <x-filament::input.wrapper :valid="! $errors->has('baris.'.$k.'.credit')">
-                                <x-filament::input type="number" step="0.01" min="0" wire:model="baris.{{ $k }}.credit" />
+                                <x-filament::input type="number" step="0.01" min="0" :disabled="empty($b['pilih'])" wire:model="baris.{{ $k }}.credit" />
                             </x-filament::input.wrapper>
                         </label>
                     </div>
@@ -95,14 +99,16 @@
 
                 <label style="display:flex;align-items:flex-start;gap:.5rem;font-size:.875rem">
                     <x-filament::input.checkbox wire:model="konfirmasi" />
-                    <span>Saya sudah memeriksa nominal dan setuju menambahkan {{ count($baris) }} baris ke journal_all.</span>
+                    <span>Saya sudah memeriksa nominal dan setuju menambahkan {{ $jumlahPilih }} baris ke journal_all.</span>
                 </label>
                 @error('konfirmasi')
                     <div style="font-size:.8125rem;color:rgb(var(--danger-600))">{{ $message }}</div>
                 @enderror
 
                 <div>
-                    <x-filament::button type="submit" wire:loading.attr="disabled" wire:target="repair">Tambahkan baris</x-filament::button>
+                    <x-filament::button type="submit" :disabled="$jumlahPilih === 0" wire:loading.attr="disabled" wire:target="repair">
+                        Tambahkan {{ $jumlahPilih }} baris
+                    </x-filament::button>
                 </div>
                 <div style="font-size:.75rem;opacity:.6">Setiap penambahan dicatat di audit_repair_log.</div>
             </form>
@@ -110,26 +116,26 @@
     @endif
 
     @if (count($lebih))
-    <x-filament::section heading="Hapus idx yang berlebih"
-        description="Idx ini tidak ada di template scenario-nya. Baris yang dihapus dicatat di audit_repair_log lengkap dengan nominal, jadi bisa dipulihkan.">
+    <x-filament::section heading="Hapus index yang berlebih"
+        description="Index ini tidak ada di template scenario-nya. Baris yang dihapus dicatat di audit_repair_log lengkap dengan nominal, jadi bisa dipulihkan.">
         <form wire:submit="hapusLebih" style="display:flex;flex-direction:column;gap:1rem">
             @foreach ($lebih as $k => $b)
                 <label style="display:flex;align-items:center;gap:.5rem;font-size:.875rem">
                     <x-filament::input.checkbox wire:model="lebih.{{ $k }}.pilih" />
-                    <span>Scenario {{ $b['scenario'] }} · idx {{ $b['idx'] }} ({{ $b['muncul'] }} baris)</span>
+                    <span>Scenario {{ $b['scenario'] }} · index {{ $b['idx'] }} ({{ $b['muncul'] }} baris)</span>
                 </label>
             @endforeach
 
             <label style="display:flex;align-items:flex-start;gap:.5rem;font-size:.875rem">
                 <x-filament::input.checkbox wire:model="konfirmasiHapus" />
-                <span>Saya sudah memeriksa dan setuju menghapus idx terpilih dari journal_all.</span>
+                <span>Saya sudah memeriksa dan setuju menghapus index terpilih dari journal_all.</span>
             </label>
             @error('konfirmasiHapus')
                 <div style="font-size:.8125rem;color:rgb(var(--danger-600))">{{ $message }}</div>
             @enderror
 
             <div>
-                <x-filament::button type="submit" color="danger" wire:loading.attr="disabled" wire:target="hapusLebih">Hapus idx terpilih</x-filament::button>
+                <x-filament::button type="submit" color="danger" wire:loading.attr="disabled" wire:target="hapusLebih">Hapus index terpilih</x-filament::button>
             </div>
         </form>
     </x-filament::section>

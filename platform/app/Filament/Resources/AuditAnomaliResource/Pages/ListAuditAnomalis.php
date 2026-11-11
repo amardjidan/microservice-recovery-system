@@ -60,7 +60,7 @@ class ListAuditAnomalis extends Page implements HasTable
                     ->fontFamily('mono')
                     ->color('gray'),
                 TextColumn::make('idx_ditemukan')
-                    ->label('Idx ditemukan / seharusnya')
+                    ->label('Index ditemukan / seharusnya')
                     ->formatStateUsing(fn ($state, array $record) => "{$record['idx_ditemukan']} / {$record['idx_seharusnya']}"),
                 TextColumn::make('jenis')
                     ->label('Jenis')
