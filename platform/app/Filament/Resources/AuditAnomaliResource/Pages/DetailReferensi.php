@@ -270,4 +270,24 @@ public function tambahBlok(int $b): void
 
         $this->muatBaris();
     }
+
+    public function totalBlok(int $b): array
+{
+    $debit = 0.0;
+    $credit = 0.0;
+    foreach ($this->blok[$b]['baris'] ?? [] as $r) {
+        $debit  += (float) ($r['debit'] ?? 0);
+        $credit += (float) ($r['credit'] ?? 0);
+    }
+
+    return ['debit' => $debit, 'credit' => $credit];
+}
+
+public function selisihBlok(int $b): float
+{
+    $t = $this->totalBlok($b);
+
+    return $t['debit'] - $t['credit'];
+
+}
 }

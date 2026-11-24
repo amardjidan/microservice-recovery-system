@@ -153,13 +153,13 @@
                     <label style="font-size:.8125rem">
                         <span style="opacity:.7">Debit</span>
                         <x-filament::input.wrapper :valid="! $errors->has('blok.'.$b.'.baris.'.$k.'.debit')">
-                            <x-filament::input type="number" step="0.01" min="0" wire:model="blok.{{ $b }}.baris.{{ $k }}.debit" />
+                            <x-filament::input type="number" step="0.01" min="0" wire:model.live="blok.{{ $b }}.baris.{{ $k }}.debit" />
                         </x-filament::input.wrapper>
                     </label>
                     <label style="font-size:.8125rem">
                         <span style="opacity:.7">Kredit</span>
                         <x-filament::input.wrapper :valid="! $errors->has('blok.'.$b.'.baris.'.$k.'.credit')">
-                            <x-filament::input type="number" step="0.01" min="0" wire:model="blok.{{ $b }}.baris.{{ $k }}.credit" />
+                            <x-filament::input type="number" step="0.01" min="0" wire:model.live="blok.{{ $b }}.baris.{{ $k }}.credit" />
                         </x-filament::input.wrapper>
                     </label>
                 </div>
@@ -170,6 +170,15 @@
                 @endforeach
             @endforeach
 
+            <div style="display:flex;justify-content:flex-end;flex-wrap:wrap;gap:1rem;align-items:center;font-size:.875rem">
+    @php $t = $this->totalBlok($b); @endphp
+    <span>Total debit: <strong>{{ number_format($t['debit'], 2, ',', '.') }}</strong></span>
+    <span>Total kredit: <strong>{{ number_format($t['credit'], 2, ',', '.') }}</strong></span>
+    <x-filament::badge :color="abs($t['debit'] - $t['credit']) < 0.005 ? 'success' : 'danger'">
+        Selisih: {{ number_format($t['debit'] - $t['credit'], 2, ',', '.') }}
+    </x-filament::badge>
+</div>
+
             <label style="display:flex;align-items:flex-start;gap:.5rem;font-size:.875rem">
                 <x-filament::input.checkbox wire:model="konfirmasiBlok" />
                 <span>Saya sudah memeriksa nominal dan setuju menambahkan 1 blok ({{ count($bl['baris']) }} baris) ke journal_all.</span>
@@ -179,7 +188,8 @@
             @enderror
 
             <div>
-                <x-filament::button type="submit" wire:loading.attr="disabled" wire:target="tambahBlok">
+                <x-filament::button type="submit" wire:loading.attr="disabled" wire:target="tambahBlok"
+                    :disabled="abs($this->selisihBlok($b)) >= 0.005">
                     Tambahkan blok
                 </x-filament::button>
             </div>
