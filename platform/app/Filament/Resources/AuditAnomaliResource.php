@@ -33,6 +33,7 @@ class AuditAnomaliResource extends Resource
             'IDX_HILANG', 'HILANG' => 'danger',
             'JUMLAH_TIDAK_RATA', 'KURANG' => 'warning',
             'IDX_LEBIH', 'TIDAK_ADA_DI_TEMPLATE' => 'info',
+            'POLA_SKENARIO_TIDAK_SESUAI', 'POLA_SKENARIO_TIDAK_SESUAI' => 'warning',
             'OK' => 'success',
             default => 'gray',
         };

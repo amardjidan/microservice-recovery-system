@@ -10,6 +10,8 @@ Route::middleware(EnsureAuditToken::class)->prefix('audit')->group(function () {
     Route::get('summary', [AuditController::class, 'summary']);
     Route::get('anomalies', [AuditController::class, 'anomalies']);
     Route::get('repairs', [AuditController::class, 'riwayat']);
+    Route::get('referensi/{ref}/form-blok', [AuditController::class, 'formBlok']);
+    Route::post('referensi/{ref}/tambah-blok', [AuditController::class, 'tambahBlok']);
     Route::get('anomalies/idx', [AuditController::class, 'anomalyIdx']);
     Route::get('unknown-patterns', [AuditController::class, 'unknownPatterns']);
     Route::get('unbalanced', [AuditController::class, 'unbalanced']);

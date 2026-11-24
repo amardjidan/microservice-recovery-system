@@ -15,6 +15,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Pagination\LengthAwarePaginator;
 
+
 /**
  * Daftar anomali. Halaman biasa (bukan ListRecords) karena datanya dari API,
  * bukan model Eloquent.
@@ -33,11 +34,11 @@ class ListAuditAnomalis extends Page implements HasTable
     {
         return $table
             // Data dari API (GET /api/audit/anomalies), bukan query database langsung.
-            ->records(function (?string $search, array $filters, int $page, int $recordsPerPage): LengthAwarePaginator {
+            ->records(function (array $filters, int $page, int $recordsPerPage): LengthAwarePaginator {
                 $hasil = app(AuditApi::class)->anomalies([
                     'jenis' => $filters['jenis']['value'] ?? null,
                     'scenario' => $filters['scenario']['scenario'] ?? null,
-                    'q' => $search,
+                    'q' => $filters['referensi']['referensi'] ?? null,
                 ], $page, $recordsPerPage);
 
                 $baris = [];
@@ -50,9 +51,8 @@ class ListAuditAnomalis extends Page implements HasTable
             })
             ->columns([
                 TextColumn::make('referensi')
-                    ->label('Referensi')
-                    ->fontFamily('mono')
-                    ->searchable(),
+                    ->label('AWB')
+                    ->fontFamily('mono'),
                 TextColumn::make('scenario')
                     ->label('Scenario'),
                 TextColumn::make('pola')
@@ -68,13 +68,20 @@ class ListAuditAnomalis extends Page implements HasTable
                     ->formatStateUsing(fn (string $state) => explode(' ', $state)[0])
                     ->color(fn (string $state) => AuditAnomaliResource::warna(explode(' ', $state)[0])),
             ])
-            ->filters([
+                        ->filters([
+                Filter::make('referensi')
+                    ->schema([
+                        TextInput::make('referensi')
+                            ->label('AWB')
+                            ->placeholder('mis. 001708799832'),
+                    ]),
                 SelectFilter::make('jenis')
                     ->label('Jenis anomali')
                     ->options([
                         'IDX_HILANG' => 'IDX_HILANG',
                         'JUMLAH_TIDAK_RATA' => 'JUMLAH_TIDAK_RATA',
                         'IDX_LEBIH' => 'IDX_LEBIH',
+                        'POLA_SKENARIO_TIDAK_SESUAI' => 'POLA_SKENARIO_TIDAK_SESUAI'
                     ]),
                 Filter::make('scenario')
                     ->schema([TextInput::make('scenario')->label('Scenario')->numeric()]),
@@ -82,7 +89,6 @@ class ListAuditAnomalis extends Page implements HasTable
             ->recordActions([
                 Action::make('lihat')
                     ->label('Detail')
-                    ->icon('heroicon-o-arrow-right')
                     ->url(fn (array $record) => AuditAnomaliResource::getUrl('detail', ['referensi' => $record['referensi']])),
             ])
             ->recordUrl(fn (array $record) => AuditAnomaliResource::getUrl('detail', ['referensi' => $record['referensi']]))

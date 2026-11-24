@@ -12,6 +12,9 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\TextInput;
+use Filament\Tables\Filters\Filter;
 
 class RiwayatRecovery extends Page implements HasTable
 {
@@ -31,9 +34,12 @@ class RiwayatRecovery extends Page implements HasTable
     {
         return $table
             ->records(function (?string $search, array $filters, int $page, int $recordsPerPage): LengthAwarePaginator {
-                $hasil = app(AuditApi::class)->riwayat([
+                 $hasil = app(AuditApi::class)->riwayat([
                     'referensi' => $search,
                     'aksi' => $filters['aksi']['value'] ?? null,
+                    'dari' => $filters['tanggal']['dari'] ?? null,
+                    'sampai' => $filters['tanggal']['sampai'] ?? null,
+                    'tahun' => $filters['tahun']['tahun'] ?? null,
                 ], $page, $recordsPerPage);
 
                 $baris = [];
@@ -47,7 +53,7 @@ class RiwayatRecovery extends Page implements HasTable
                 TextColumn::make('created_at')
                     ->label('Waktu'),
                 TextColumn::make('referensi')
-                    ->label('Referensi')
+                    ->label('AWB')
                     ->fontFamily('mono')
                     ->searchable(),
                 TextColumn::make('scenario')
@@ -77,6 +83,15 @@ class RiwayatRecovery extends Page implements HasTable
                     ->options([
                         'TAMBAH' => 'Tambah',
                         'HAPUS' => 'Hapus',
+                    ]),
+                Filter::make('tanggal')
+                    ->schema([
+                        DatePicker::make('dari')->label('Dari tanggal'),
+                        DatePicker::make('sampai')->label('Sampai tanggal'),
+                    ]),
+                Filter::make('tahun')
+                    ->schema([
+                        TextInput::make('tahun')->label('Tahun')->numeric()->placeholder('mis. 2026'),
                     ]),
             ])
             ->recordActions([

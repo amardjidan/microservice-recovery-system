@@ -9,7 +9,7 @@ use RuntimeException;
 /**
  * Lapisan tipis di atas objek database audit yang sudah ada.
  * Logika audit TIDAK ditulis ulang di sini; dibaca dari:
- *   view      audit_anomali
+ *   view      audit_anomali, audit_pola_khusus
  *   matview   referensi_pola_full
  *   function  cek_referensi(), cek_idx()
  *   procedure refresh_audit()
@@ -39,14 +39,18 @@ class AuditService
         ");
 
         $perJenis = collect(DB::select('
-            SELECT jenis,
-                   COUNT(*)                   AS jumlah_scenario,
-                   COUNT(DISTINCT referensi)  AS jumlah_referensi
-            FROM audit_anomali
-            GROUP BY jenis
-            ORDER BY jumlah_referensi DESC'))
-            ->map(fn ($r) => $this->withKode($r))
-            ->all();
+    SELECT jenis,
+           COUNT(*)                   AS jumlah_scenario,
+           COUNT(DISTINCT referensi)  AS jumlah_referensi
+    FROM (
+        SELECT jenis, referensi FROM audit_anomali
+        UNION ALL
+        SELECT jenis, referensi FROM audit_pola_khusus
+    ) a
+    GROUP BY jenis
+    ORDER BY jumlah_referensi DESC'))
+    ->map(fn ($r) => $this->withKode($r))
+    ->all();
 
         $topTidakNormal = DB::select("
             SELECT f.{$pola} AS pola, COUNT(*) AS jumlah
@@ -94,37 +98,54 @@ class AuditService
         ];
     }
 
-    /** Semua anomali (referensi berpola normal yang idx-nya tidak lengkap/rata). */
+    /**
+     * Semua anomali. Jenis POLA_SKENARIO_TIDAK_SESUAI dibaca dari view audit_pola_khusus,
+     * jenis lainnya dari view audit_anomali.
+     */
     public function anomalies(array $f, int $page, int $perPage): array
-    {
-        $where = ['1=1'];
-        $bind = [];
-        if (! empty($f['jenis'])) {
-            $where[] = 'jenis LIKE ?';
-            $bind[] = $f['jenis'].'%';
-        }
-        if (! empty($f['scenario'])) {
-            $where[] = 'scenario = ?';
-            $bind[] = (int) $f['scenario'];
-        }
-        if (! empty($f['q'])) {
-            $where[] = 'referensi ILIKE ?';
-            $bind[] = '%'.$f['q'].'%';
-        }
+{
+    $jenis = $f['jenis'] ?? null;
+    $kolom = 'referensi, scenario, jenis, idx_ditemukan, idx_seharusnya';
 
-        $out = $this->paginate(
-            'SELECT * FROM audit_anomali WHERE '.implode(' AND ', $where),
-            $bind, 'referensi, scenario', $page, $perPage
-        );
-        $out['data'] = array_map(fn ($r) => $this->withKode($r), $out['data']);
-
-        $pola = $this->polaFor(array_values(array_unique(array_map(fn ($r) => $r->referensi, $out['data']))));
-        foreach ($out['data'] as $r) {
-            $r->pola = $pola[$r->referensi] ?? null;
-        }
-
-        return $out;
+    if ($jenis === 'POLA_SKENARIO_TIDAK_SESUAI') {
+        $sumber = 'audit_pola_khusus';
+    } elseif (empty($jenis)) {
+        // tanpa filter: gabungkan kedua view
+        $sumber = "(SELECT {$kolom} FROM audit_anomali
+                    UNION ALL
+                    SELECT {$kolom} FROM audit_pola_khusus) s";
+    } else {
+        $sumber = 'audit_anomali';
     }
+
+    $where = ['1=1'];
+    $bind = [];
+    if (! empty($f['jenis'])) {
+        $where[] = 'jenis LIKE ?';
+        $bind[] = $f['jenis'].'%';
+    }
+    if (! empty($f['scenario'])) {
+        $where[] = 'scenario = ?';
+        $bind[] = (int) $f['scenario'];
+    }
+    if (! empty($f['q'])) {
+        $where[] = 'referensi ILIKE ?';
+        $bind[] = '%'.$f['q'].'%';
+    }
+
+    $out = $this->paginate(
+        "SELECT * FROM {$sumber} WHERE ".implode(' AND ', $where),
+        $bind, 'referensi, scenario', $page, $perPage
+    );
+    $out['data'] = array_map(fn ($r) => $this->withKode($r), $out['data']);
+
+    $pola = $this->polaFor(array_values(array_unique(array_map(fn ($r) => $r->referensi, $out['data']))));
+    foreach ($out['data'] as $r) {
+        $r->pola = $pola[$r->referensi] ?? null;
+    }
+
+    return $out;
+}
 
     /**
      * Detail tingkat idx untuk SEMUA anomali.
@@ -212,13 +233,26 @@ class AuditService
 
     /** Detail satu referensi: ringkasan per scenario + tabel idx. Langsung dari journal_all. */
     public function reference(string $ref): array
-    {
-        return [
-            'referensi' => $ref,
-            'scenario' => DB::select('SELECT * FROM cek_referensi(?)', [$ref]),
-            'idx' => DB::select('SELECT * FROM cek_idx(?)', [$ref]),
-        ];
+{
+    $scenario = DB::select('SELECT * FROM cek_referensi(?)', [$ref]);
+
+    // anomali pola khusus: timpa jenis scenario yang bersangkutan
+    $khusus = collect(DB::select(
+        'SELECT scenario, jenis FROM audit_pola_khusus WHERE referensi = ?', [$ref]
+    ))->keyBy('scenario');
+
+    foreach ($scenario as $sc) {
+        if ($k = $khusus->get((int) $sc->scenario)) {
+            $sc->jenis = $k->jenis;
+        }
     }
+
+    return [
+        'referensi' => $ref,
+        'scenario' => $scenario,
+        'idx' => DB::select('SELECT * FROM cek_idx(?)', [$ref]),
+    ];
+}
 
     /** Riwayat recovery satu halaman, terbaru di atas. */
     public function riwayat(array $f, int $page, int $perPage): array
@@ -230,6 +264,15 @@ class AuditService
         }
         if (filled($f['aksi'] ?? null)) {
             $q->where('aksi', $f['aksi']);
+        }
+        if (filled($f['dari'] ?? null)) {
+            $q->whereDate('created_at', '>=', $f['dari']);
+        }
+        if (filled($f['sampai'] ?? null)) {
+            $q->whereDate('created_at', '<=', $f['sampai']);
+        }
+        if (filled($f['tahun'] ?? null)) {
+            $q->whereYear('created_at', (int) $f['tahun']);
         }
 
         $total = (clone $q)->count();
@@ -272,7 +315,7 @@ class AuditService
      * $rows: [{scenario, idx, debit, credit}]. Satu transaksi; semua dicatat di audit_repair_log.
      * Validasi: idx harus ada di template DAN memang kurang muncul menurut cek_idx().
      */
-        public function repair(string $ref, array $rows, string $user): array
+    public function repair(string $ref, array $rows, string $user): array
     {
         $sebelum = $this->snapshotRef($ref);
         $inserted = [];
@@ -296,7 +339,7 @@ class AuditService
                 }
                 $kurang = (int) $s->max_muncul - (int) $s->muncul;
                 if ($n > $kurang) {
-                    throw new InvalidArgumentException("IndexIdx $k hanya kurang $kurang baris, diminta $n.");
+                    throw new InvalidArgumentException("Index $k hanya kurang $kurang baris, diminta $n.");
                 }
             }
 
@@ -348,10 +391,6 @@ class AuditService
         ];
     }
 
-    /**
- * Hapus idx yang tidak ada di template (IDX_LEBIH). $items: [{scenario, idx}].
- * Semua baris yang dihapus dicatat di audit_repair_log (aksi HAPUS) beserta nominalnya.
- */
     /**
      * Hapus idx yang tidak ada di template (IDX_LEBIH). $items: [{scenario, idx}].
      * Semua baris yang dihapus dicatat di audit_repair_log (aksi HAPUS) beserta nominalnya.
@@ -406,6 +445,90 @@ class AuditService
         });
 
         return ['dihapus' => $dihapus, 'hasil_cek' => $this->reference($ref)];
+    }
+
+    /** Data untuk form tambah blok: baris template + blok sekarang / seharusnya. */
+public function formBlok(string $ref, int $scenario): array
+{
+    $khusus = DB::selectOne(
+        'SELECT idx_ditemukan, idx_seharusnya FROM audit_pola_khusus
+         WHERE referensi = ? AND scenario = ?', [$ref, $scenario]);
+
+    if (! $khusus) {
+        throw new InvalidArgumentException('AWB ini tidak terdeteksi sebagai POLA_SKENARIO_TIDAK_SESUAI.');
+    }
+
+    return [
+        'referensi' => $ref,
+        'scenario' => $scenario,
+        'blok_sekarang' => (int) $khusus->idx_ditemukan,
+        'target_blok' => (int) $khusus->idx_seharusnya,
+        'template' => DB::select(
+            'SELECT idx, coa_name FROM scenario_template WHERE scenario = ? ORDER BY idx', [$scenario]),
+    ];
+}
+
+    /**
+     * Tambah satu blok utuh untuk scenario. $nilai: [idx => ['debit' => .., 'credit' => ..]]
+     * untuk SEMUA idx di template scenario itu. $targetBlok = jumlah blok yang seharusnya.
+     */
+    public function tambahBlok(string $ref, int $scenario, int $targetBlok, array $nilai, string $user): void
+    {
+        DB::transaction(function () use ($ref, $scenario, $targetBlok, $nilai, $user) {
+            DB::selectOne('SELECT pg_advisory_xact_lock(hashtext(?))', [$ref]);
+
+            $tpl = DB::select('SELECT idx, coa_name FROM scenario_template WHERE scenario = ? ORDER BY idx', [$scenario]);
+            if (! $tpl) {
+                throw new InvalidArgumentException("Scenario $scenario tidak ada di template.");
+            }
+
+            $idxTpl = array_map(fn ($t) => (int) $t->idx, $tpl);
+            $idxInput = array_map('intval', array_keys($nilai));
+            sort($idxTpl);
+            sort($idxInput);
+            if ($idxTpl !== $idxInput) {
+                throw new InvalidArgumentException('Isi debit dan credit untuk semua index template scenario ini.');
+            }
+
+            $base = DB::selectOne(
+                'SELECT journal_date, source_month FROM journal_all WHERE referensi = ? AND scenario = ? LIMIT 1',
+                [$ref, $scenario]
+            );
+            if (! $base) {
+                throw new InvalidArgumentException("Scenario $scenario tidak ada di AWB ini.");
+            }
+
+            $blok = (int) DB::selectOne(
+                'SELECT COUNT(*) AS n FROM journal_all WHERE referensi = ? AND scenario = ? AND idx = ?',
+                [$ref, $scenario, $idxTpl[0]]
+            )->n;
+            if ($blok >= $targetBlok) {
+                throw new InvalidArgumentException("Scenario $scenario sudah $blok blok, target $targetBlok.");
+            }
+
+            $jenis = "POLA_SKENARIO_TIDAK_SESUAI scenario $scenario";
+
+            foreach ($tpl as $t) {
+                $n = $nilai[(int) $t->idx];
+
+                DB::insert(
+                    'INSERT INTO journal_all
+                       (scenario, idx, referensi, journal_date, coa_name, debit, credit, source_month)
+                     VALUES (?,?,?,?,?,?,?,?)',
+                    [$scenario, $t->idx, $ref, $base->journal_date, $t->coa_name,
+                        $n['debit'], $n['credit'], $base->source_month]
+                );
+
+                DB::insert(
+                    'INSERT INTO audit_repair_log
+                       (referensi, scenario, idx, coa_name, debit, credit, dibuat_oleh, created_at, aksi,
+                        jenis, muncul_sebelum, muncul_sesudah, seharusnya)
+                     VALUES (?,?,?,?,?,?,?, now(), ?, ?, ?, ?, ?)',
+                    [$ref, $scenario, $t->idx, $t->coa_name, $n['debit'], $n['credit'], $user, 'TAMBAH',
+                        $jenis, $blok, $blok + 1, $targetBlok]
+                );
+            }
+        });
     }
 
     // ------------------------------------------------------------------

@@ -44,7 +44,7 @@ class PolaNormal extends Page implements HasTable
                         ->required()
                         ->maxLength(200)
                         ->regex('/^\d+(,\d+)*$/'),
-                    Toggle::make('is_spx')->label('Pola SPX'),
+                    Toggle::make('is_spx')->label('Pola khusus'),
                 ])
                 ->action(function (array $data, AuditApi $api) {
                     try {
@@ -91,9 +91,9 @@ class PolaNormal extends Page implements HasTable
                     ->fontFamily('mono')
                     ->searchable()
                     ->sortable(),
-                IconColumn::make('is_spx')->label('SPX')->boolean(),
+                IconColumn::make('is_spx')->label('Pola khusus')->boolean(),
                 TextColumn::make('jumlah')
-                    ->label('Referensi')
+                    ->label('Total AWB')
                     ->numeric(thousandsSeparator: '.', decimalSeparator: ',')
                     ->alignEnd()
                     ->sortable(),

@@ -27,6 +27,10 @@ class DetailReferensi extends Page
 
     public bool $konfirmasiHapus = false;
 
+    public array $blok = [];
+
+    public bool $konfirmasiBlok = false;
+
     public function mount(string $referensi): void
     {
         $this->referensi = $referensi;
@@ -102,7 +106,79 @@ class DetailReferensi extends Page
 
     $this->konfirmasi = false;
     $this->konfirmasiHapus = false;
+    $this->konfirmasiBlok = false;
+    $this->muatBlok();
     }
+
+    private function muatBlok(): void
+{
+    $this->blok = [];
+
+    try {
+        foreach ($this->data()['scenario'] as $sc) {
+            if (! str_starts_with(strtoupper((string) $sc['jenis']), 'POLA_SKENARIO_TIDAK_SESUAI')) {
+                continue;
+            }
+
+            $f = app(AuditApi::class)->formBlok($this->referensi, (int) $sc['scenario']);
+
+            $this->blok[] = [
+                'scenario' => (int) $f['scenario'],
+                'sekarang' => (int) $f['blok_sekarang'],
+                'target' => (int) $f['target_blok'],
+                'baris' => array_map(fn ($t) => [
+                    'idx' => (int) $t['idx'],
+                    'coa' => $t['coa_name'],
+                    'debit' => '',
+                    'credit' => '',
+                ], $f['template']),
+            ];
+        }
+    } catch (InvalidArgumentException|RuntimeException $e) {
+        // form tidak tampil kalau API gagal; halaman lain tetap jalan
+    }
+}
+
+public function tambahBlok(int $b): void
+{
+    $this->validate([
+        'konfirmasiBlok' => ['accepted'],
+        "blok.$b.baris.*.debit" => ['required', 'numeric', 'min:0'],
+        "blok.$b.baris.*.credit" => ['required', 'numeric', 'min:0'],
+    ], [
+        'konfirmasiBlok.accepted' => 'Centang dulu pernyataan bahwa nominal sudah diperiksa.',
+        'blok.*.baris.*.debit.required' => 'Debit wajib diisi (isi 0 kalau tidak ada).',
+        'blok.*.baris.*.credit.required' => 'Kredit wajib diisi (isi 0 kalau tidak ada).',
+        'blok.*.baris.*.debit.numeric' => 'Debit harus angka.',
+        'blok.*.baris.*.credit.numeric' => 'Kredit harus angka.',
+    ]);
+
+    $blok = $this->blok[$b];
+    $nilai = [];
+    foreach ($blok['baris'] as $r) {
+        $nilai[$r['idx']] = ['debit' => $r['debit'], 'credit' => $r['credit']];
+    }
+
+    try {
+        app(AuditApi::class)->tambahBlok(
+            $this->referensi, $blok['scenario'], $blok['target'], $nilai,
+            auth()->user()?->email ?? 'filament'
+        );
+    } catch (InvalidArgumentException|RuntimeException $e) {
+        Notification::make()->title('Gagal menambah blok')->body($e->getMessage())->danger()->send();
+        $this->muatBaris();
+
+        return;
+    }
+
+    Notification::make()
+        ->title('1 blok scenario '.$blok['scenario'].' ditambahkan ke journal_all')
+        ->body('Audit ulang berjalan otomatis di latar belakang.')
+        ->success()
+        ->send();
+
+    $this->redirect(AuditAnomaliResource::getUrl());
+}
 
         public function repair(): void
     {

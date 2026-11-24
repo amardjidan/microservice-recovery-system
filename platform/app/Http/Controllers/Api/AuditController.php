@@ -44,15 +44,18 @@ class AuditController extends Controller
     }
 
     public function riwayat(Request $r): JsonResponse
-    {
+{
     $f = $r->validate([
         'referensi' => ['nullable', 'string', 'max:50'],
         'aksi' => ['nullable', 'in:TAMBAH,HAPUS'],
+        'dari' => ['nullable', 'date'],
+        'sampai' => ['nullable', 'date', 'after_or_equal:dari'],
+        'tahun' => ['nullable', 'integer', 'between:2000,2100'],
         ...$this->pageRules(),
     ]);
 
     return response()->json($this->audit->riwayat($f, $this->page($f), $this->perPage($f)));
-    }
+}
 
     public function anomalyIdx(Request $r): JsonResponse
     {
@@ -140,6 +143,42 @@ class AuditController extends Controller
     return response()->json($hasil);
     }
 
+    public function formBlok(string $ref, Request $request, AuditService $audit)
+{
+    try {
+        return response()->json($audit->formBlok($ref, (int) $request->query('scenario')));
+    } catch (\InvalidArgumentException $e) {
+        return response()->json(['message' => $e->getMessage()], 422);
+    }
+}
+
+public function tambahBlok(string $ref, Request $request, AuditService $audit)
+{
+    $data = $request->validate([
+        'scenario' => 'required|integer',
+        'target_blok' => 'required|integer|min:2',
+        'nilai' => 'required|array|min:1',
+        'nilai.*.debit' => 'required|numeric|min:0',
+        'nilai.*.credit' => 'required|numeric|min:0',
+    ]);
+
+    try {
+        $audit->tambahBlok(
+            $ref, $data['scenario'], $data['target_blok'], $data['nilai'],
+            $request->input('user', 'admin')   // samakan dengan cara endpoint repair mengambil user
+        );
+    } catch (\InvalidArgumentException $e) {
+        return response()->json(['message' => $e->getMessage()], 422);
+    }
+
+    $this->jadwalkanAudit();
+
+    return response()->json([
+        'message' => 'Blok berhasil ditambahkan.',
+        'hasil_cek' => $audit->reference($ref),
+    ]);
+}
+
     // ---- Pola normal ----
 
     public function patterns(): JsonResponse
@@ -213,4 +252,5 @@ class AuditController extends Controller
             Cache::put('audit.ulang', true, 900);
         }
     }
+    
 }

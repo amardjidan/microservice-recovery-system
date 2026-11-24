@@ -6,8 +6,8 @@ use App\Filament\Resources\AuditAnomaliResource;
 use App\Filament\Support\AuditSummary as S;
 use App\Services\AuditApi;
 use Filament\Widgets\Widget;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\On;
-
 
 /**
  * Seluruh isi dashboard dalam SATU widget (kartu angka, proporsi, dua tabel pola),
@@ -33,18 +33,30 @@ class AuditStats extends Widget
         $s = S::get();
         $total = max($s['total_referensi'], 1);
         $normalPct = round($s['referensi_normal'] / $total * 100, 1);
+        $kemunculan = $this->kemunculanAman();
+        $kemunculanTotal = collect($kemunculan)->unique('pola')->sum('jumlah_referensi');
 
         $baris = fn (array $rows) => array_map(
             fn ($r) => ['pola' => $r->pola, 'jumlah' => S::angka($r->jumlah)], $rows
         );
 
+        $perJenis = array_map(fn ($j) => [
+            'kode' => $j->kode,
+            'warna' => AuditAnomaliResource::warna($j->kode),
+            'referensi' => S::angka($j->jumlah_referensi),
+            'scenario' => S::angka($j->jumlah_scenario),
+            'ket' => null,
+            'url' => AuditAnomaliResource::getUrl('index', ['filters' => ['jenis' => ['value' => $j->kode]]]),
+        ], $s['anomali_per_jenis']);
+
+
         return [
             'kartu' => [
-                ['label' => 'Total referensi', 'nilai' => S::angka($s['total_referensi']),
-                    'ket' => 'Seluruh journal_all', 'warna' => null],
-                ['label' => 'Referensi normal', 'nilai' => S::angka($s['referensi_normal']),
+                ['label' => 'Total AWB', 'nilai' => S::angka($s['total_referensi']),
+                    'ket' => 'Jumlah AWB di journal_all', 'warna' => null],
+                ['label' => 'AWB normal', 'nilai' => S::angka($s['referensi_normal']),
                     'ket' => S::persen($s['referensi_normal'] / $total * 100).'% dari total', 'warna' => 'success'],
-                ['label' => 'Referensi tidak normal', 'nilai' => S::angka($s['referensi_tidak_normal']),
+                ['label' => 'AWB tidak normal', 'nilai' => S::angka($s['referensi_tidak_normal']),
                     'ket' => S::persen($s['referensi_tidak_normal'] / $total * 100).'% dari total', 'warna' => 'warning'],
             ],
             'normal' => $normalPct,
@@ -52,13 +64,7 @@ class AuditStats extends Widget
             'normalLabel' => S::persen($normalPct),
             'tidakLabel' => S::persen(100 - $normalPct),
             'polaBerbeda' => S::angka($s['pola_tidak_normal_berbeda']),
-            'perJenis' => array_map(fn ($j) => [
-                'kode' => $j->kode,
-                'warna' => AuditAnomaliResource::warna($j->kode),
-                'referensi' => S::angka($j->jumlah_referensi),
-                'scenario' => S::angka($j->jumlah_scenario),
-                'url' => AuditAnomaliResource::getUrl('index', ['filters' => ['jenis' => ['value' => $j->kode]]]),
-            ], $s['anomali_per_jenis']),
+            'perJenis' => $perJenis,
             'tabel' => [
                 ['judul' => 'Pola tidak normal teratas', 'rows' => $baris($s['pola_tidak_normal_top'])],
                 ['judul' => 'Pola normal teratas', 'rows' => $baris($s['pola_normal_top'])],
@@ -68,12 +74,21 @@ class AuditStats extends Widget
         ];
     }
 
-        private function statusAudit(): ?array
+    private function statusAudit(): ?array
     {
         try {
             return app(AuditApi::class)->refreshStatus();
         } catch (\Throwable) {
             return null;
+        }
+    }
+
+    private function kemunculanAman(): array
+    {
+        try {
+            return Cache::remember('audit.kemunculan', 300, fn () => app(AuditApi::class)->kemunculan());
+        } catch (\Throwable) {
+            return [];
         }
     }
 }

@@ -19,7 +19,7 @@
             @endforeach
         </div>
 
-        <x-filament::section heading="Proporsi referensi">
+        <x-filament::section heading="Status AWB">
             <div style="display:flex;height:12px;border-radius:9999px;overflow:hidden;background:rgba(128,128,128,.2)">
                 <div style="width:{{ $normal }}%;background:#10b981"></div>
                 <div style="width:{{ $tidak }}%;background:#f59e0b"></div>
@@ -35,12 +35,14 @@
                         <a href="{{ $j['url'] }}" style="display:block;padding:.75rem 1rem;border-radius:.5rem;border:1px solid rgba(128,128,128,.3);min-width:11rem">
                             <x-filament::badge :color="$j['warna']">{{ $j['kode'] }}</x-filament::badge>
                             <div style="font-size:1.25rem;font-weight:600;margin-top:.5rem">{{ $j['referensi'] }}</div>
-                            <div style="font-size:.75rem;opacity:.7">referensi · {{ $j['scenario'] }} scenario</div>
+                            <div style="font-size:.75rem;opacity:.7">AWB · {{ $j['scenario'] }} scenario</div>
                         </a>
                     @endforeach
                 </div>
             @endif
         </x-filament::section>
+
+      
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(20rem,1fr));gap:1rem">
             @foreach ($tabel as $t)
@@ -49,7 +51,7 @@
                         <thead>
                             <tr style="text-align:left;opacity:.7;font-size:.8125rem">
                                 <th style="padding:.5rem 0;font-weight:600">Pola</th>
-                                <th style="padding:.5rem 0;font-weight:600;text-align:right">Referensi</th>
+                                <th style="padding:.5rem 0;font-weight:600;text-align:right">Total AWB</th>
                             </tr>
                         </thead>
                         <tbody>

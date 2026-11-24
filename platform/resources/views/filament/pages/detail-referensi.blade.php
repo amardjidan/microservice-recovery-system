@@ -140,4 +140,51 @@
         </form>
     </x-filament::section>
 @endif
+@foreach ($blok as $b => $bl)
+    <x-filament::section :heading="'Tambah blok scenario '.$bl['scenario']"
+        description="Blok sekarang {{ $bl['sekarang'] }}, seharusnya {{ $bl['target'] }}. Nama akun, tanggal, dan bulan sumber diambil otomatis. Nominal harus Anda isi sendiri.">
+        <form wire:submit="tambahBlok({{ $b }})" style="display:flex;flex-direction:column;gap:1rem">
+            @foreach ($bl['baris'] as $k => $r)
+                <div style="display:grid;grid-template-columns:minmax(12rem,1.2fr) repeat(2,minmax(10rem,1fr));gap:1rem;align-items:end">
+                    <div style="font-size:.875rem;padding-bottom:.5rem">
+                        <span style="display:block;font-family:ui-monospace,Menlo,monospace;font-size:.75rem;opacity:.65">Index {{ $r['idx'] }}</span>
+                        {{ $r['coa'] }}
+                    </div>
+                    <label style="font-size:.8125rem">
+                        <span style="opacity:.7">Debit</span>
+                        <x-filament::input.wrapper :valid="! $errors->has('blok.'.$b.'.baris.'.$k.'.debit')">
+                            <x-filament::input type="number" step="0.01" min="0" wire:model="blok.{{ $b }}.baris.{{ $k }}.debit" />
+                        </x-filament::input.wrapper>
+                    </label>
+                    <label style="font-size:.8125rem">
+                        <span style="opacity:.7">Kredit</span>
+                        <x-filament::input.wrapper :valid="! $errors->has('blok.'.$b.'.baris.'.$k.'.credit')">
+                            <x-filament::input type="number" step="0.01" min="0" wire:model="blok.{{ $b }}.baris.{{ $k }}.credit" />
+                        </x-filament::input.wrapper>
+                    </label>
+                </div>
+                @foreach (['debit', 'credit'] as $f)
+                    @error('blok.'.$b.'.baris.'.$k.'.'.$f)
+                        <div style="font-size:.8125rem;color:rgb(var(--danger-600))">{{ $message }}</div>
+                    @enderror
+                @endforeach
+            @endforeach
+
+            <label style="display:flex;align-items:flex-start;gap:.5rem;font-size:.875rem">
+                <x-filament::input.checkbox wire:model="konfirmasiBlok" />
+                <span>Saya sudah memeriksa nominal dan setuju menambahkan 1 blok ({{ count($bl['baris']) }} baris) ke journal_all.</span>
+            </label>
+            @error('konfirmasiBlok')
+                <div style="font-size:.8125rem;color:rgb(var(--danger-600))">{{ $message }}</div>
+            @enderror
+
+            <div>
+                <x-filament::button type="submit" wire:loading.attr="disabled" wire:target="tambahBlok">
+                    Tambahkan blok
+                </x-filament::button>
+            </div>
+            <div style="font-size:.75rem;opacity:.6">Setiap penambahan dicatat di audit_repair_log.</div>
+        </form>
+    </x-filament::section>
+@endforeach
 </x-filament-panels::page>

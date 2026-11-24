@@ -56,6 +56,27 @@ class AuditApi
     return $this->pastikan($res)->json();
     }
 
+    /** Data form tambah blok: blok_sekarang, target_blok, template. */
+public function formBlok(string $ref, int $scenario): array
+{
+    return $this->pastikan(
+        $this->kirim('GET', 'referensi/'.rawurlencode($ref).'/form-blok', ['scenario' => $scenario])
+    )->json();
+}
+
+/** @throws InvalidArgumentException kalau API menolak data (422) */
+public function tambahBlok(string $ref, int $scenario, int $targetBlok, array $nilai, string $user): array
+{
+    set_time_limit(150);
+    $res = $this->kirim(
+        'POST', 'referensi/'.rawurlencode($ref).'/tambah-blok',
+        ['scenario' => $scenario, 'target_blok' => $targetBlok, 'nilai' => $nilai, 'user' => $user],
+        120, ['X-Audit-User' => $user]
+    );
+
+    return $this->pastikan($res)->json();
+}
+
     public function patterns(): array
     {
         return $this->pastikan($this->kirim('GET', 'patterns'))->json();
@@ -92,6 +113,8 @@ class AuditApi
     {
         return $this->pastikan($this->kirim('GET', 'refresh/status'))->json();
     }
+
+        
 
     // ------------------------------------------------------------------
 
