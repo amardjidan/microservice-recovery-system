@@ -181,6 +181,8 @@ public function tambahBlok(string $ref, Request $request, AuditService $audit)
 
     // ---- Pola normal ----
 
+
+
     public function patterns(): JsonResponse
     {
         return response()->json($this->audit->patterns());
@@ -206,6 +208,39 @@ public function tambahBlok(string $ref, Request $request, AuditService $audit)
 
         return response()->json(['dihapus' => $ada, 'perlu_refresh' => $ada], $ada ? 200 : 404);
     }
+
+    public function polaKhusus(): JsonResponse
+{
+    return response()->json($this->audit->polaKhusus());
+}
+
+public function addPolaKhusus(Request $r): JsonResponse
+{
+    $d = $r->validate([
+        'pola' => ['required', 'string', 'max:200', 'regex:/^\d+(,\d+)*$/'],
+        'scenario' => ['required', 'integer', 'min:0'],
+        'pola_normal' => ['required', 'string', 'max:200', 'regex:/^\d+(,\d+)*$/'],
+        'idx' => ['required', 'integer', 'min:0'],
+        'jumlah_seharusnya' => ['required', 'integer', 'min:1', 'max:100'],
+    ]);
+
+    try {
+        $baru = $this->audit->addPolaKhusus(
+            $d['pola'], $d['scenario'], $d['pola_normal'], $d['idx'], $d['jumlah_seharusnya']
+        );
+    } catch (InvalidArgumentException $e) {
+        return response()->json(['message' => $e->getMessage()], 422);
+    }
+
+    return response()->json(['pola' => $d['pola'], 'baru' => $baru], $baru ? 201 : 200);
+}
+
+public function removePolaKhusus(string $pola): JsonResponse
+{
+    $ada = $this->audit->removePolaKhusus($pola);
+
+    return response()->json(['dihapus' => $ada], $ada ? 200 : 404);
+}
 
     // ---- Cache ----
 
@@ -252,5 +287,22 @@ public function tambahBlok(string $ref, Request $request, AuditService $audit)
             Cache::put('audit.ulang', true, 900);
         }
     }
+
+    // cari jurnal
+
+    public function jurnal(Request $r): JsonResponse
+{
+    set_time_limit(120);
+    $f = $r->validate([
+        'referensi' => ['nullable', 'string', 'max:50'],
+        'dari' => ['nullable', 'date'],
+        'sampai' => ['nullable', 'date', 'after_or_equal:dari'],
+        'bulan' => ['nullable', 'integer', 'between:1,12'],
+        'tahun' => ['nullable', 'integer', 'between:2000,2100'],
+        ...$this->pageRules(),
+    ]);
+
+    return response()->json($this->audit->jurnal($f, $this->page($f), $this->perPage($f)));
+}
     
 }

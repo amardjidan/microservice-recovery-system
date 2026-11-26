@@ -53,15 +53,10 @@ class ListAuditAnomalis extends Page implements HasTable
                 TextColumn::make('referensi')
                     ->label('AWB')
                     ->fontFamily('mono'),
-                TextColumn::make('scenario')
-                    ->label('Scenario'),
                 TextColumn::make('pola')
                     ->label('Pola')
                     ->fontFamily('mono')
                     ->color('gray'),
-                TextColumn::make('idx_ditemukan')
-                    ->label('Index ditemukan / seharusnya')
-                    ->formatStateUsing(fn ($state, array $record) => "{$record['idx_ditemukan']} / {$record['idx_seharusnya']}"),
                 TextColumn::make('jenis')
                     ->label('Jenis')
                     ->badge()
@@ -78,13 +73,11 @@ class ListAuditAnomalis extends Page implements HasTable
                 SelectFilter::make('jenis')
                     ->label('Jenis anomali')
                     ->options([
-                        'IDX_HILANG' => 'IDX_HILANG',
-                        'JUMLAH_TIDAK_RATA' => 'JUMLAH_TIDAK_RATA',
-                        'IDX_LEBIH' => 'IDX_LEBIH',
-                        'POLA_SKENARIO_TIDAK_SESUAI' => 'POLA_SKENARIO_TIDAK_SESUAI'
+                        'IDX_HILANG' => 'Index hilang',
+                        'JUMLAH_TIDAK_RATA' => 'Jumlah index tidak rata',
+                        'IDX_LEBIH' => 'Index lebih',
+                        'POLA_SKENARIO_TIDAK_SESUAI' => 'Pola mencurigakan',
                     ]),
-                Filter::make('scenario')
-                    ->schema([TextInput::make('scenario')->label('Scenario')->numeric()]),
             ])
             ->recordActions([
                 Action::make('lihat')

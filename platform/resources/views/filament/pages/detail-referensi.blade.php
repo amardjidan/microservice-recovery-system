@@ -45,6 +45,8 @@
                             <th style="{{ $th }};text-align:right">Muncul</th>
                             <th style="{{ $th }};text-align:right">Seharusnya</th>
                             <th style="{{ $th }}">Status</th>
+                            <th style="{{ $th }};text-align:right">Total debit</th>
+<th style="{{ $th }};text-align:right">Total kredit</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -55,6 +57,8 @@
                                 <td style="{{ $td }};text-align:right">{{ $i['muncul'] }}</td>
                                 <td style="{{ $td }};text-align:right">{{ $i['max_muncul'] }}</td>
                                 <td style="{{ $td }}"><x-filament::badge :color="$warna($i['status'])">{{ $kode($i['status']) }}</x-filament::badge></td>
+                                <td style="{{ $td }};text-align:right">{{ number_format($i['total_debit'] ?? 0, 2, ',', '.') }}</td>
+<td style="{{ $td }};text-align:right">{{ number_format($i['total_credit'] ?? 0, 2, ',', '.') }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -177,7 +181,7 @@
     <x-filament::badge :color="abs($t['debit'] - $t['credit']) < 0.005 ? 'success' : 'danger'">
         Selisih: {{ number_format($t['debit'] - $t['credit'], 2, ',', '.') }}
     </x-filament::badge>
-</div>
+</div>ppt
 
             <label style="display:flex;align-items:flex-start;gap:.5rem;font-size:.875rem">
                 <x-filament::input.checkbox wire:model="konfirmasiBlok" />

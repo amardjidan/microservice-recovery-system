@@ -46,8 +46,6 @@ class AuditService
                 SELECT jenis, referensi FROM audit_anomali
                 UNION ALL
                 SELECT jenis, referensi FROM audit_pola_khusus
-                UNION ALL
-                SELECT jenis, referensi FROM audit_saldo
             ) a
             GROUP BY jenis
             ORDER BY jumlah_referensi DESC'))
@@ -95,7 +93,6 @@ class AuditService
         $tanpaTemplate = $this->scenariosWithoutTemplate();
 
         return $this->summary() + [
-            'tidak_seimbang' => (int) $unbalanced,
             'scenario_tanpa_template' => $tanpaTemplate,
         ];
     }
@@ -107,23 +104,17 @@ class AuditService
     public function anomalies(array $f, int $page, int $perPage): array
     {
         $jenis = $f['jenis'] ?? null;
-        $kolom = 'referensi, scenario, jenis, idx_ditemukan, idx_seharusnya';
-        $kolomSaldo = 'referensi, scenario, jenis, NULL::int AS idx_ditemukan, NULL::int AS idx_seharusnya';
+$kolom = 'referensi, scenario, jenis, idx_ditemukan, idx_seharusnya';
 
-        if ($jenis === 'POLA_SKENARIO_TIDAK_SESUAI') {
-            $sumber = 'audit_pola_khusus';
-        } elseif ($jenis === 'TIDAK_SEIMBANG') {
-            $sumber = 'audit_saldo';
-        } elseif (empty($jenis)) {
-            // tanpa filter: gabungkan ketiga view
-            $sumber = "(SELECT {$kolom} FROM audit_anomali
-                        UNION ALL
-                        SELECT {$kolom} FROM audit_pola_khusus
-                        UNION ALL
-                        SELECT {$kolomSaldo} FROM audit_saldo) s";
-        } else {
-            $sumber = 'audit_anomali';
-        }
+if ($jenis === 'POLA_SKENARIO_TIDAK_SESUAI') {
+    $sumber = 'audit_pola_khusus';
+} elseif (empty($jenis)) {
+    $sumber = "(SELECT {$kolom} FROM audit_anomali
+                UNION ALL
+                SELECT {$kolom} FROM audit_pola_khusus) s";
+} else {
+    $sumber = 'audit_anomali';
+}
 
         $where = ['1=1'];
         $bind = [];
@@ -240,26 +231,48 @@ class AuditService
 
     /** Detail satu referensi: ringkasan per scenario + tabel idx. Langsung dari journal_all. */
     public function reference(string $ref): array
-    {
-        $scenario = DB::select('SELECT * FROM cek_referensi(?)', [$ref]);
+{
+    $scenario = DB::select('SELECT * FROM cek_referensi(?)', [$ref]);
 
-        // anomali pola khusus: timpa jenis scenario yang bersangkutan
-        $khusus = collect(DB::select(
-            'SELECT scenario, jenis FROM audit_pola_khusus WHERE referensi = ?', [$ref]
-        ))->keyBy('scenario');
+    // anomali pola khusus: timpa jenis scenario yang bersangkutan
+    $khusus = collect(DB::select(
+        'SELECT scenario, jenis FROM audit_pola_khusus WHERE referensi = ?', [$ref]
+    ))->keyBy('scenario');
 
-        foreach ($scenario as $sc) {
-            if ($k = $khusus->get((int) $sc->scenario)) {
-                $sc->jenis = $k->jenis;
-            }
+    foreach ($scenario as $sc) {
+        if ($k = $khusus->get((int) $sc->scenario)) {
+            $sc->jenis = $k->jenis;
         }
-
-        return [
-            'referensi' => $ref,
-            'scenario' => $scenario,
-            'idx' => DB::select('SELECT * FROM cek_idx(?)', [$ref]),
-        ];
     }
+
+    $idx = DB::select('SELECT * FROM cek_idx(?)', [$ref]);
+
+    // total debit & kredit per scenario + idx, langsung dari journal_all
+    $nilai = [];
+    foreach (DB::select(
+        'SELECT scenario, idx, SUM(debit) AS total_debit, SUM(credit) AS total_credit
+         FROM journal_all WHERE referensi = ? GROUP BY scenario, idx', [$ref]) as $n) {
+        $nilai[(int) $n->scenario.':'.(int) $n->idx] = $n;
+    }
+
+    foreach ($idx as $i) {
+        $n = $nilai[(int) $i->scenario.':'.(int) $i->idx] ?? null;
+        $i->total_debit  = (float) ($n->total_debit ?? 0);
+        $i->total_credit = (float) ($n->total_credit ?? 0);
+    }
+
+    foreach ($scenario as $sc) {
+        $baris = collect($idx)->where('scenario', $sc->scenario);
+        $sc->total_debit  = (float) $baris->sum('total_debit');
+        $sc->total_credit = (float) $baris->sum('total_credit');
+    }
+
+    return [
+        'referensi' => $ref,
+        'scenario' => $scenario,
+        'idx' => $idx,
+    ];
+}
 
     /** Riwayat recovery satu halaman, terbaru di atas. */
     public function riwayat(array $f, int $page, int $perPage): array
@@ -546,6 +559,46 @@ class AuditService
         });
     }
 
+    public function polaKhusus(): array
+{
+    $pola = $this->polaColumn();
+
+    return DB::select("
+        SELECT k.id, k.pola, k.scenario, k.pola_normal, k.idx, k.jumlah_seharusnya,
+               COUNT(f.referensi)::int AS jumlah
+        FROM pola_khusus k
+        LEFT JOIN referensi_pola_full f ON f.{$pola} = k.pola
+        GROUP BY k.id
+        ORDER BY jumlah DESC, k.pola");
+}
+
+public function addPolaKhusus(string $pola, int $scenario, string $polaNormal, int $idx, int $jumlah): bool
+{
+    $this->assertPattern($pola);
+    $this->assertPattern($polaNormal);
+
+    if (DB::selectOne('SELECT 1 FROM normal_scenario_patterns WHERE pattern = ?', [$pola])) {
+        throw new InvalidArgumentException("Pola $pola sudah terdaftar sebagai pola normal.");
+    }
+    if (! DB::selectOne('SELECT 1 FROM normal_scenario_patterns WHERE pattern = ?', [$polaNormal])) {
+        throw new InvalidArgumentException("Pola normal acuan $polaNormal belum terdaftar.");
+    }
+    if (! DB::selectOne('SELECT 1 FROM scenario_template WHERE scenario = ? AND idx = ?', [$scenario, $idx])) {
+        throw new InvalidArgumentException("Scenario $scenario index $idx tidak ada di template.");
+    }
+
+    return DB::affectingStatement(
+        'INSERT INTO pola_khusus (pola, scenario, pola_normal, idx, jumlah_seharusnya)
+         VALUES (?, ?, ?, ?, ?) ON CONFLICT (pola) DO NOTHING',
+        [$pola, $scenario, $polaNormal, $idx, $jumlah]
+    ) > 0;
+}
+
+public function removePolaKhusus(string $pola): bool
+{
+    return DB::affectingStatement('DELETE FROM pola_khusus WHERE pola = ?', [$pola]) > 0;
+}
+
     // ------------------------------------------------------------------
     // Pola normal
     // ------------------------------------------------------------------
@@ -687,4 +740,50 @@ class AuditService
             'Kolom pola tidak ditemukan di referensi_pola_full. Kolom yang ada: '.implode(', ', $cols)
         );
     }
+    // cari data jurnal
+
+    /** Cari data jurnal berdasarkan filter. Tanpa filter, hasilnya kosong. */
+public function jurnal(array $f, int $page, int $perPage): array
+{
+    $where = [];
+    $bind = [];
+
+    if (filled($f['referensi'] ?? null)) {
+        $where[] = 'referensi LIKE ?';
+        $bind[] = trim($f['referensi']).'%';
+    }
+    if (filled($f['dari'] ?? null)) {
+        $where[] = 'journal_date >= ?::date';
+        $bind[] = $f['dari'];
+    }
+    if (filled($f['sampai'] ?? null)) {
+        $where[] = "journal_date < (?::date + interval '1 day')";
+        $bind[] = $f['sampai'];
+    }
+
+    $tahun = (int) ($f['tahun'] ?? 0);
+    $bulan = (int) ($f['bulan'] ?? 0);
+    if ($tahun && $bulan) {
+        $awal = sprintf('%04d-%02d-01', $tahun, $bulan);
+        $where[] = "journal_date >= ?::date AND journal_date < (?::date + interval '1 month')";
+        array_push($bind, $awal, $awal);
+    } elseif ($tahun) {
+        $awal = sprintf('%04d-01-01', $tahun);
+        $where[] = "journal_date >= ?::date AND journal_date < (?::date + interval '1 year')";
+        array_push($bind, $awal, $awal);
+    } elseif ($bulan) {
+        $where[] = 'EXTRACT(MONTH FROM journal_date) = ?';
+        $bind[] = $bulan;
+    }
+
+    if (! $where) {
+        return ['total' => 0, 'page' => $page, 'per_page' => $perPage, 'data' => []];
+    }
+
+    return $this->paginate(
+        'SELECT referensi, scenario, idx, coa_name, debit, credit, journal_date, source_month
+         FROM journal_all WHERE '.implode(' AND ', $where),
+        $bind, 'journal_date, referensi, scenario, idx', $page, $perPage
+    );
+}
 }

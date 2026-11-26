@@ -33,7 +33,7 @@
                 <div style="display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1.25rem">
                     @foreach ($perJenis as $j)
                         <a href="{{ $j['url'] }}" style="display:block;padding:.75rem 1rem;border-radius:.5rem;border:1px solid rgba(128,128,128,.3);min-width:11rem">
-                            <x-filament::badge :color="$j['warna']">{{ $j['kode'] }}</x-filament::badge>
+                            <x-filament::badge :color="$j['warna']">{{ $j['label'] ?? $j['kode'] }}</x-filament::badge>
                             <div style="font-size:1.25rem;font-weight:600;margin-top:.5rem">{{ $j['referensi'] }}</div>
                             <div style="font-size:.75rem;opacity:.7">AWB · {{ $j['scenario'] }} scenario</div>
                         </a>

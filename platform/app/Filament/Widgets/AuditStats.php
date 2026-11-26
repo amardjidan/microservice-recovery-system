@@ -21,6 +21,13 @@ class AuditStats extends Widget
 
     protected int|string|array $columnSpan = 'full';
 
+    const LABEL = [
+    'POLA_SKENARIO_TIDAK_SESUAI' => 'Pola Mencurigakan',
+    'IDX_HILANG'                 => 'Index Hilang',
+    'IDX_LEBIH'                  => 'Index Lebih',
+    'JUMLAH_TIDAK_RATA'          => 'Index Tidak Rata',
+];
+
     protected string $view = 'filament.widgets.audit-ringkasan';
 
     #[On('audit-selesai')]
@@ -42,12 +49,15 @@ class AuditStats extends Widget
 
         $perJenis = array_map(fn ($j) => [
             'kode' => $j->kode,
+            'label' => self::LABEL[$j->kode] ?? null,
             'warna' => AuditAnomaliResource::warna($j->kode),
             'referensi' => S::angka($j->jumlah_referensi),
             'scenario' => S::angka($j->jumlah_scenario),
             'ket' => null,
             'url' => AuditAnomaliResource::getUrl('index', ['filters' => ['jenis' => ['value' => $j->kode]]]),
         ], $s['anomali_per_jenis']);
+
+        
 
 
         return [

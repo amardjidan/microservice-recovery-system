@@ -17,12 +17,18 @@ Route::middleware(EnsureAuditToken::class)->prefix('audit')->group(function () {
     Route::get('unbalanced', [AuditController::class, 'unbalanced']);
     Route::get('scenarios-without-template', [AuditController::class, 'scenariosWithoutTemplate']);
 
+    // -- cari jurnal
+    Route::get('journal', [AuditController::class, 'jurnal']);
+
     // ---- Cek dan perbaiki satu referensi ----
     Route::get('references/{referensi}', [AuditController::class, 'reference']);
     Route::post('references/{referensi}/repair', [AuditController::class, 'repair']);
     Route::post('references/{referensi}/remove-extra-idx', [AuditController::class, 'removeExtraIdx']);
 
     // ---- Pola normal ----
+    Route::get('special-patterns', [AuditController::class, 'polaKhusus']);
+    Route::post('special-patterns', [AuditController::class, 'addPolaKhusus']);
+    Route::delete('special-patterns/{pola}', [AuditController::class, 'removePolaKhusus']);
     Route::get('patterns', [AuditController::class, 'patterns']);
     Route::post('patterns', [AuditController::class, 'addPattern']);
     Route::delete('patterns/{pattern}', [AuditController::class, 'removePattern']);

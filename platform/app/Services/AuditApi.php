@@ -102,6 +102,35 @@ public function tambahBlok(string $ref, int $scenario, int $targetBlok, array $n
         return (bool) $this->pastikan($res)->json('dihapus');
     }
 
+    public function polaKhusus(): array
+{
+    return $this->pastikan($this->kirim('GET', 'special-patterns'))->json();
+}
+
+public function addPolaKhusus(string $pola, int $scenario, string $polaNormal, int $idx, int $jumlah): bool
+{
+    $res = $this->kirim('POST', 'special-patterns', [
+        'pola' => $pola,
+        'scenario' => $scenario,
+        'pola_normal' => $polaNormal,
+        'idx' => $idx,
+        'jumlah_seharusnya' => $jumlah,
+    ]);
+
+    return (bool) $this->pastikan($res)->json('baru');
+}
+
+public function removePolaKhusus(string $pola): bool
+{
+    $res = $this->kirim('DELETE', 'special-patterns/'.rawurlencode($pola));
+
+    if ($res->status() === 404) {
+        return false;
+    }
+
+    return (bool) $this->pastikan($res)->json('dihapus');
+}
+
     /** CALL refresh_audit() di sisi API (sekitar 20 detik). */
     /** Memulai audit di latar belakang. */
     public function refresh(): array
@@ -160,4 +189,13 @@ public function tambahBlok(string $ref, int $scenario, int $targetBlok, array $n
 
         return $this->pastikan($this->kirim('GET', 'repairs', $query))->json();
     }
+
+    // cari jurnal
+    /** Cari data jurnal satu halaman: ['total', 'page', 'per_page', 'data' => [...]]. */
+public function jurnal(array $filter, int $page, int $perPage): array
+{
+    $query = array_filter($filter, fn ($v) => filled($v)) + ['page' => $page, 'per_page' => $perPage];
+
+    return $this->pastikan($this->kirim('GET', 'journal', $query, 60))->json();
+}
 }
