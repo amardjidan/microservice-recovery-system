@@ -90,7 +90,7 @@ microservice-recovery/
 │   │       └── AuditService.php      # Logika audit
 │   ├── routes/
 │   └── resources/
-└── 
+
 ```
 
 ## Instalasi
@@ -136,6 +136,15 @@ php artisan make:filament-user
 
 # 6. Jalankan server
 php artisan serve
+
+Buka **empat terminal** terpisah, masuk ke folder `platform`, lalu jalankan:
+ 
+| Terminal | Perintah | Fungsi |
+|---|---|---|
+| 1 | `php artisan serve` | Panel admin di `http://127.0.0.1:8000/admin` |
+| 2 | `php artisan serve --port=8001` | API audit di `http://127.0.0.1:8001` (endpoint `/audit/...`) |
+| 3 | `php artisan queue:work` | Queue worker (proses di latar belakang, misalnya refresh audit) |
+| 4 | `php artisan schedule:work` | Scheduler (tugas terjadwal) selama development |
 ```
 
 Buka `http://127.0.0.1:8000/admin` lalu login.
@@ -158,10 +167,17 @@ Semua endpoint berada di prefix `/audit` dan memerlukan autentikasi (`auth:sanct
 |---|---|---|
 | GET | `/audit/summary` | Ringkasan audit |
 | GET | `/audit/anomalies` | Daftar anomali |
+| GET | `/audit/journal` | Cari data jurnal (filter AWB, tanggal, bulan, tahun) |
+| GET | `/audit/repairs` | Riwayat perbaikan data |
 | GET | `/audit/references/{referensi}` | Detail satu referensi |
 | POST | `/audit/references/{referensi}/repair` | Perbaiki data (dengan konfirmasi dan nominal per baris) |
-| GET / POST / DELETE | `/audit/patterns` | Lihat, tambah, hapus pola |
+| POST | `/audit/references/{referensi}/remove-extra-idx` | Hapus index yang berlebih |
+| GET / POST / DELETE | `/audit/patterns` | Lihat, tambah, hapus pola normal |
+| GET / POST / DELETE | `/audit/special-patterns` | Lihat, tambah, hapus pola khusus |
 | POST | `/audit/refresh` | Segarkan hasil audit |
+| GET | `/audit/refresh/status` | Cek status proses refresh |
+
+Endpoint lain (`report`, `unknown-patterns`, `unbalanced`, `scenarios-without-template`) dapat dilihat di `routes/api.php`.
 
 ## Pengujian
 
