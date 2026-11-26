@@ -59,13 +59,38 @@ Jika **satu kejadian scenario hilang utuh dan merata** (semua index turun dengan
 
 ```
 microservice-recovery/
-├── platform/          # Aplikasi Laravel + panel Filament
+├── platform/                         # Aplikasi Laravel + panel Filament
 │   ├── app/
-│   │   ├── Filament/Pages/   # Halaman admin (Cari jurnal, dll.)
-│   │   └── Services/         # AuditApi, AuditService
+│   │   ├── Console/
+│   │   ├── Filament/
+│   │   │   ├── Pages/                # Halaman admin
+│   │   │   │   ├── auth/Login.php
+│   │   │   │   ├── AuditDashboard.php    # Ringkasan
+│   │   │   │   ├── CariJurnal.php        # Cari jurnal
+│   │   │   │   ├── PolaKhusus.php        # Pola khusus
+│   │   │   │   ├── PolaNormal.php        # Pola normal
+│   │   │   │   └── RiwayatRecovery.php   # Riwayat recovery
+│   │   │   ├── Resources/
+│   │   │   │   ├── AuditAnomaliResource/Pages/
+│   │   │   │   │   ├── DetailReferensi.php   # Detail satu referensi + repair
+│   │   │   │   │   └── ListAuditAnomalis.php # Daftar anomali
+│   │   │   │   └── AuditAnomaliResource.php
+│   │   │   ├── Support/AuditSummary.php
+│   │   │   └── Widgets/AuditStats.php    # Statistik di Ringkasan
+│   │   ├── Http/
+│   │   │   ├── Controllers/
+│   │   │   │   ├── Api/AuditController.php   # Endpoint REST /audit
+│   │   │   │   └── Controller.php
+│   │   │   └── Middleware/
+│   │   ├── Jobs/
+│   │   ├── Models/                   # AuditAnomali, User
+│   │   ├── Providers/                # AppServiceProvider, provider Filament
+│   │   └── Services/
+│   │       ├── AuditApi.php          # Klien yang dipakai halaman Filament
+│   │       └── AuditService.php      # Logika audit
 │   ├── routes/
 │   └── resources/
-└── hapus_blade.ps1    # Script pembersih UI Blade lama (sekali pakai)
+└── 
 ```
 
 ## Instalasi
