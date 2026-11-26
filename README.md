@@ -25,11 +25,11 @@ Ketika sebuah microservice down, sebagian transaksi bisa tercatat tidak lengkap:
 | Halaman | Screenshot |
 |---|---|
 | Ringkasan | ![Ringkasan](platform/docs/screenshots/ringkasan.png) |
-| Daftar anomali | ![Daftar anomali](platfrom/docs/screenshots/daftaranomali.png) |
-| Riwayat recovery | ![Riwayat recovery](platfrom/docs/screenshots/riwayat-recovery.png) |
-| Pola normal | ![Pola normal](platfrom/docs/screenshots/pola-normal.png) |
-| Pola khusus | ![Pola khusus](platfrom/docs/screenshots/pola-khusus.png) |
-| Cari jurnal | ![Cari jurnal](platfrom/docs/screenshots/cari-jurnal.png) |
+| Daftar anomali | ![Daftar anomali](platform/docs/screenshots/daftaranomali.png) |
+| Riwayat recovery | ![Riwayat recovery](platform/docs/screenshots/riwayat-recovery.png) |
+| Pola normal | ![Pola normal](platform/docs/screenshots/pola-normal.png) |
+| Pola khusus | ![Pola khusus](platform/docs/screenshots/pola-khusus.png) |
+| Cari jurnal | ![Cari jurnal](platform/docs/screenshots/cari-jurnal.png) |
 
 ## Cara Kerja Deteksi
 
