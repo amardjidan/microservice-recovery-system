@@ -26,7 +26,7 @@ Ketika sebuah microservice down, sebagian transaksi bisa tercatat tidak lengkap:
 
 | Halaman | Screenshot |
 |---|---|
-| Ringkasan | ![Ringkasan](docs/screenshots/ringkasan.png) |
+| Ringkasan | ![Ringkasan](platform/docs/screenshots/ringkasan.png) |
 | Daftar anomali | ![Daftar anomali](docs/screenshots/daftaranomali.png) |
 | Riwayat recovery | ![Riwayat recovery](docs/screenshots/riwayat-recovery.png) |
 | Pola normal | ![Pola normal](docs/screenshots/pola-normal.png) |
