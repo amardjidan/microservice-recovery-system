@@ -137,6 +137,7 @@ php artisan make:filament-user
 # 6. Jalankan server
 php artisan serve
 
+```
 Buka **empat terminal** terpisah, masuk ke folder `platform`, lalu jalankan:
  
 | Terminal | Perintah | Fungsi |
@@ -145,7 +146,6 @@ Buka **empat terminal** terpisah, masuk ke folder `platform`, lalu jalankan:
 | 2 | `php artisan serve --port=8001` | API audit di `http://127.0.0.1:8001` (endpoint `/audit/...`) |
 | 3 | `php artisan queue:work` | Queue worker (proses di latar belakang, misalnya refresh audit) |
 | 4 | `php artisan schedule:work` | Scheduler (tugas terjadwal) selama development |
-```
 
 Buka `http://127.0.0.1:8000/admin` lalu login.
 
