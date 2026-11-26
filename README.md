@@ -22,8 +22,6 @@ Ketika sebuah microservice down, sebagian transaksi bisa tercatat tidak lengkap:
 
 ## Tampilan Sistem
 
-> Ganti placeholder di bawah dengan screenshot masing-masing halaman, simpan di folder `docs/screenshots/`.
-
 | Halaman | Screenshot |
 |---|---|
 | Ringkasan | ![Ringkasan](platform/docs/screenshots/ringkasan.png) |
